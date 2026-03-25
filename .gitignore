@@ -1,0 +1,12 @@
+node_modules/
+server/node_modules/
+client/node_modules/
+client/dist/
+server/salon.db
+server/salon.db-shm
+server/salon.db-wal
+*.db
+*.db-shm
+*.db-wal
+.env
+.DS_Store
