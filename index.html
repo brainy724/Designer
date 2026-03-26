@@ -855,7 +855,7 @@ function renderSvcList(){
         <div class="svc-name"><div class="svc-chk-box">✓</div>${nm}<span class="svc-dur-tag">${fmtDur(s.durH)}</span></div>
         ${dc?`<div class="svc-meta-text">${dc}</div>`:''}
       </div>
-      <div class="svc-price">${fmtMoney(s.price)}</div>
+      <div class="svc-price">${s.price?fmtMoney(s.price):''}</div>
     </div>`;
   }).join('');
   updateSelSummary();

@@ -975,8 +975,8 @@ function renderMenuManage(){
       style="display:flex;align-items:center;gap:8px;padding:12px 14px;border:1.5px solid var(--ln);border-radius:9px;margin-bottom:7px;background:var(--bg)">
       <span class="drag-handle" title="드래그해서 순서 변경">⠿</span>
       <div style="flex:1">
-        <div style="font-size:.88rem;font-weight:500">${s.name.ko}</div>
-        <div style="font-size:.74rem;color:var(--sub);margin-top:3px">${fmtMoney(s.price)} · ${fmtDur(s.durH)}${s.desc&&s.desc.ko?' · '+s.desc.ko:''}</div>
+        <div style="font-size:.88rem;font-weight:500">${s.name.ko||''}</div>
+        <div style="font-size:.74rem;color:var(--sub);margin-top:3px">${[s.price?fmtMoney(s.price):'',fmtDur(s.durH),s.desc&&s.desc.ko?s.desc.ko:''].filter(Boolean).join(' · ')}</div>
       </div>
       <button onclick="openEditSvc(${s.id})" style="padding:7px 14px;border:1.5px solid var(--ln);border-radius:7px;background:var(--w);font-size:.78rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">편집</button>
       <button onclick="deleteSvc(${s.id})" style="padding:7px 12px;border:1.5px solid #DEC0C0;border-radius:7px;background:var(--red-bg);font-size:.78rem;cursor:pointer;color:var(--red);font-family:'DM Sans','Noto Sans KR',sans-serif">삭제</button>
@@ -1282,8 +1282,8 @@ function renderSvcEditor(){
   el.innerHTML=services.length ? services.map(s=>`
     <div style="display:flex;align-items:center;gap:8px;padding:12px 14px;border:1.5px solid var(--ln);border-radius:9px;margin-bottom:7px;background:var(--bg)">
       <div style="flex:1">
-        <div style="font-size:.88rem;font-weight:500">${s.name.ko}</div>
-        <div style="font-size:.74rem;color:var(--sub);margin-top:3px">${fmtMoney(s.price)} · ${fmtDur(s.durH)}${s.desc&&s.desc.ko?' · '+s.desc.ko:''}</div>
+        <div style="font-size:.88rem;font-weight:500">${s.name.ko||''}</div>
+        <div style="font-size:.74rem;color:var(--sub);margin-top:3px">${[s.price?fmtMoney(s.price):'',fmtDur(s.durH),s.desc&&s.desc.ko?s.desc.ko:''].filter(Boolean).join(' · ')}</div>
       </div>
       <button onclick="openEditSvc(${s.id})" style="padding:7px 14px;border:1.5px solid var(--ln);border-radius:7px;background:var(--w);font-size:.78rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">편집</button>
       <button onclick="deleteSvc(${s.id})" style="padding:7px 12px;border:1.5px solid #DEC0C0;border-radius:7px;background:var(--red-bg);font-size:.78rem;cursor:pointer;color:var(--red);font-family:'DM Sans','Noto Sans KR',sans-serif">삭제</button>
@@ -1314,7 +1314,6 @@ function saveSvc(){
   const price=parseInt(document.getElementById('svcEditPrice').value)||0;
   const durH=parseFloat(document.getElementById('svcEditDur').value);
   const desc=document.getElementById('svcEditDesc').value.trim();
-  if(!name||!price){alert('이름과 가격을 입력해주세요.');return;}
   if(id){const s=services.find(x=>x.id===parseInt(id));s.name={ko:name,en:name};s.price=price;s.durH=durH;s.desc={ko:desc,en:desc};}
   else services.push({id:svcNextId++,name:{ko:name,en:name},price,durH,desc:{ko:desc,en:desc}});
   closeModal('svcModal');saveData();renderSvcEditor();renderMenuManage();
