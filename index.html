@@ -77,6 +77,9 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
 
 /* ── MULTI-SELECT SERVICE CARDS ── */
 .svc-list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+/* 카테고리 탭 */
+.cat-tab{padding:7px 16px;border:1.5px solid var(--ln);border-radius:20px;background:var(--w);font-size:.76rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif;color:var(--sub);transition:all .13s;white-space:nowrap;}
+.cat-tab.on{background:var(--pk);border-color:var(--pk);color:var(--w);font-weight:500;}
 .svc-card{background:var(--w);border:1.5px solid var(--ln);border-radius:var(--r);padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:all .13s;user-select:none;}
 .svc-card:hover{border-color:var(--pk-mid);background:var(--pk-light);}
 .svc-card.sel{border-color:var(--pk);border-width:2px;background:var(--pk-light);}
@@ -433,6 +436,8 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
         <div class="sh-title" data-ko="시술을 선택해주세요" data-en="Select services">시술을 선택해주세요</div>
         <div class="sh-sub" data-ko="복수 선택 가능합니다. 소요 시간이 자동으로 합산됩니다." data-en="Multiple selection available. Duration is calculated automatically.">복수 선택 가능합니다. 소요 시간이 자동으로 합산됩니다.</div>
       </div>
+      <!-- 카테고리 탭 -->
+      <div id="catTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;"></div>
       <div class="svc-list" id="svcList"></div>
       <div class="sel-summary" id="selSummary">
         <div class="sel-tags" id="selTags"></div>
@@ -845,8 +850,24 @@ function showView(v,btn){
 // ═══════════════════════════════════════════════════
 // 예약 플로우
 // ═══════════════════════════════════════════════════
+let activeCat = '전체';
+
 function renderSvcList(){
-  document.getElementById('svcList').innerHTML=services.map(s=>{
+  // 카테고리 목록 추출
+  const cats = ['전체', ...new Set(services.map(s=>s.cat).filter(Boolean))];
+  const tabEl = document.getElementById('catTabs');
+  if(tabEl){
+    // activeCat이 없어진 경우 전체로 초기화
+    if(!cats.includes(activeCat)) activeCat='전체';
+    tabEl.innerHTML = cats.map(c=>
+      `<button class="cat-tab${activeCat===c?' on':''}" onclick="setCat('${c}')">${c}</button>`
+    ).join('');
+    // 카테고리 1개면 탭 숨김
+    tabEl.style.display = cats.length <= 1 ? 'none' : 'flex';
+  }
+  // 필터링
+  const filtered = activeCat==='전체' ? services : services.filter(s=>s.cat===activeCat);
+  document.getElementById('svcList').innerHTML=filtered.map(s=>{
     const isSel=selSvcIds.has(s.id);
     const nm=lang==='en'?(s.name.en||s.name.ko):s.name.ko;
     const dc=lang==='en'?(s.desc.en||s.desc.ko):s.desc.ko;
@@ -859,6 +880,11 @@ function renderSvcList(){
     </div>`;
   }).join('');
   updateSelSummary();
+}
+
+function setCat(cat){
+  activeCat=cat;
+  renderSvcList();
 }
 
 function toggleSvc(id){

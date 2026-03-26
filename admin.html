@@ -655,8 +655,9 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
     <div class="modal-head"><div class="modal-title" id="svcMTitle">시술 편집</div><button class="modal-close" onclick="closeModal('svcModal')">✕</button></div>
     <div class="modal-body">
       <input type="hidden" id="svcEditId">
-      <div class="field"><label>시술 이름 *</label><input id="svcEditName" placeholder="예: 커트"></div>
-      <div class="field"><label>가격 (원) *</label><input id="svcEditPrice" type="number" placeholder="35000"></div>
+      <div class="field"><label>카테고리</label><input id="svcEditCat" placeholder="예: 커트, 펌, 컬러 (없으면 전체에 표시)"></div>
+      <div class="field"><label>시술 이름</label><input id="svcEditName" placeholder="예: 디자이너 커트"></div>
+      <div class="field"><label>가격 (원)</label><input id="svcEditPrice" type="number" placeholder="35000"></div>
       <div class="field"><label>소요 시간</label>
         <select id="svcEditDur">
           <option value="0.5">30분</option><option value="1">1시간</option>
@@ -1298,12 +1299,13 @@ function openEditSvc(id){
   document.getElementById('svcEditPrice').value=s.price;
   document.getElementById('svcEditDur').value=s.durH;
   document.getElementById('svcEditDesc').value=s.desc.ko||'';
+  document.getElementById('svcEditCat').value=s.cat||'';
   document.getElementById('svcModal').classList.add('on');
 }
 function openAddSvcModal(){
   document.getElementById('svcMTitle').textContent='시술 추가';
   document.getElementById('svcEditId').value='';
-  ['svcEditName','svcEditDesc'].forEach(i=>document.getElementById(i).value='');
+  ['svcEditName','svcEditDesc','svcEditCat'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('svcEditPrice').value='';
   document.getElementById('svcEditDur').value='1';
   document.getElementById('svcModal').classList.add('on');
@@ -1314,8 +1316,13 @@ function saveSvc(){
   const price=parseInt(document.getElementById('svcEditPrice').value)||0;
   const durH=parseFloat(document.getElementById('svcEditDur').value);
   const desc=document.getElementById('svcEditDesc').value.trim();
-  if(id){const s=services.find(x=>x.id===parseInt(id));s.name={ko:name,en:name};s.price=price;s.durH=durH;s.desc={ko:desc,en:desc};}
-  else services.push({id:svcNextId++,name:{ko:name,en:name},price,durH,desc:{ko:desc,en:desc}});
+  const cat=document.getElementById('svcEditCat').value.trim();
+  if(id){
+    const s=services.find(x=>x.id===parseInt(id));
+    s.name={ko:name,en:name};s.price=price;s.durH=durH;s.desc={ko:desc,en:desc};s.cat=cat;
+  } else {
+    services.push({id:svcNextId++,name:{ko:name,en:name},price,durH,desc:{ko:desc,en:desc},cat});
+  }
   closeModal('svcModal');saveData();renderSvcEditor();renderMenuManage();
 }
 function deleteSvc(id){if(!confirm('삭제할까요?'))return;services=services.filter(s=>s.id!==id);saveData();renderSvcEditor();renderMenuManage();}
