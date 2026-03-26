@@ -1062,7 +1062,7 @@ function ckS3(){
   document.getElementById('s3btn').disabled=!ok;
 }
 
-function submitBooking(){
+async function submitBooking(){
   const name=document.getElementById('fn').value.trim();
   const phone=document.getElementById('fp').value.trim();
   const note=document.getElementById('fnt').value.trim();
@@ -1074,7 +1074,8 @@ function submitBooking(){
     date:sel.date,startTime:sel.startTime,endTime:sel.endTime,
     totalDurH,totalPrice,note,status:'pending'};
   bookings.push(b);saveData();
-  saveBookingToSupa(b).catch(()=>{});
+  // Supabase에 저장 (await으로 확실하게)
+  try{ await saveBookingToSupa(b); }catch(e){}
   const selNames=selArr.map(s=>lang==='en'?(s.name.en||s.name.ko):s.name.ko).join(', ');
   document.getElementById('doneSummary').innerHTML=
     `<div class="sum-row"><span class="sum-k">${lang==='en'?'Name':'이름'}</span><span class="sum-v">${name}</span></div>`+
@@ -1127,51 +1128,51 @@ async function doLookup(){
   const el = document.getElementById('lkResults');
   el.innerHTML = '<div style="text-align:center;padding:18px;color:var(--sub);font-size:.8rem">조회 중...</div>';
 
-  let found = [];
+  // localStorage에서 먼저 조회
+  loadData();
+  let found = bookings.filter(b=>b.name===name&&b.phone===phone)
+                      .sort((a,z)=>z.date.localeCompare(a.date));
 
-  // Supabase에서 전체 조회 후 JS에서 필터링 (한글 인코딩 문제 완전 회피)
+  // Supabase 조회
   try {
-    const res = await fetch(SUPA_URL + '/rest/v1/bookings?order=date.desc', {
-      method: 'GET',
-      headers: {
-        'apikey': SUPA_KEY,
-        'Authorization': 'Bearer ' + SUPA_KEY,
-        'Content-Type': 'application/json'
-      }
+    const data = await new Promise((resolve, reject)=>{
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', SUPA_URL+'/rest/v1/bookings?select=*&order=date.desc', true);
+      xhr.setRequestHeader('apikey', SUPA_KEY);
+      xhr.setRequestHeader('Authorization', 'Bearer '+SUPA_KEY);
+      xhr.timeout = 8000;
+      xhr.onload = ()=>{
+        if(xhr.status===200) resolve(JSON.parse(xhr.responseText));
+        else reject(new Error(xhr.status));
+      };
+      xhr.onerror = ()=>reject(new Error('network'));
+      xhr.ontimeout = ()=>reject(new Error('timeout'));
+      xhr.send();
     });
-    if(res.ok){
-      const data = await res.json();
-      const matched = data.filter(b => b.name === name && b.phone === phone);
-      if(matched.length){
-        found = matched.map(b=>({
-          id:b.id, name:b.name, phone:b.phone,
-          services:b.services||[], date:b.date,
-          startTime:b.start_time, endTime:b.end_time,
-          totalDurH:b.total_dur_h, totalPrice:b.total_price,
-          note:b.note||'', status:b.status
-        }));
-        // localStorage에 동기화
-        found.forEach(sb=>{
-          const idx = bookings.findIndex(b=>b.id===sb.id);
-          if(idx>=0) bookings[idx]=sb; else bookings.push(sb);
-        });
-        saveData();
-      }
+    const supaFound = data.filter(b=>b.name===name && b.phone===phone);
+    if(supaFound.length){
+      found = supaFound.map(b=>({
+        id:b.id, name:b.name, phone:b.phone,
+        services:b.services||[], date:b.date,
+        startTime:b.start_time, endTime:b.end_time,
+        totalDurH:b.total_dur_h, totalPrice:b.total_price,
+        note:b.note||'', status:b.status
+      }));
+      found.forEach(sb=>{
+        const idx=bookings.findIndex(b=>b.id===sb.id);
+        if(idx>=0) bookings[idx]=sb; else bookings.push(sb);
+      });
+      saveData();
     }
-  } catch(e){}
-
-  // Supabase 실패시 localStorage 조회
-  if(!found.length){
-    loadData();
-    found = bookings.filter(b=>b.name===name&&b.phone===phone)
-                    .sort((a,z)=>z.date.localeCompare(a.date));
+  } catch(e){
+    // 네트워크 실패시 localStorage 결과 사용
   }
 
   if(!found.length){
-    el.innerHTML = `<div class="lookup-card"><div style="text-align:center;padding:18px;color:var(--sub);font-size:.82rem">일치하는 예약이 없습니다.</div></div>`;
+    el.innerHTML=`<div class="lookup-card"><div style="text-align:center;padding:18px;color:var(--sub);font-size:.82rem">일치하는 예약이 없습니다.</div></div>`;
     return;
   }
-  el.innerHTML = found.map(b=>buildLkCard(b)).join('');
+  el.innerHTML=found.map(b=>buildLkCard(b)).join('');
 }
 function buildLkCard(b){
   const canAct=b.status==='pending'||b.status==='confirmed';
