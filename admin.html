@@ -931,7 +931,7 @@ function navCal(w,d){
 // 관리자
 // ═══════════════════════════════════════════════════
 // ── 비밀번호 관리 ──
-let adminPw = '1234';
+let adminPw = localStorage.getItem('sera_adminPw')||'1234';
 
 function doLogin(){
   if(document.getElementById('pwInput').value===adminPw){
@@ -1020,6 +1020,7 @@ function changePassword(){
   if(nw.length<4){show('❌ 새 비밀번호는 4자 이상이어야 합니다.',false);return;}
   if(nw!==cf){show('❌ 새 비밀번호가 일치하지 않습니다.',false);return;}
   adminPw=nw;
+  localStorage.setItem('sera_adminPw',nw);
   document.getElementById('pwCurrent').value='';
   document.getElementById('pwNew').value='';
   document.getElementById('pwConfirm').value='';

@@ -853,20 +853,18 @@ function showView(v,btn){
 let activeCat = '전체';
 
 function renderSvcList(){
-  // 카테고리 목록 추출
-  const cats = ['전체', ...new Set(services.map(s=>s.cat).filter(Boolean))];
+  // 카테고리 목록 추출 (cat 없는 시술은 '기타'로)
+  const cats = ['전체', ...new Set(services.map(s=>s.cat||'').filter(Boolean))];
   const tabEl = document.getElementById('catTabs');
   if(tabEl){
-    // activeCat이 없어진 경우 전체로 초기화
     if(!cats.includes(activeCat)) activeCat='전체';
     tabEl.innerHTML = cats.map(c=>
       `<button class="cat-tab${activeCat===c?' on':''}" onclick="setCat('${c}')">${c}</button>`
     ).join('');
-    // 카테고리 1개면 탭 숨김
     tabEl.style.display = cats.length <= 1 ? 'none' : 'flex';
   }
   // 필터링
-  const filtered = activeCat==='전체' ? services : services.filter(s=>s.cat===activeCat);
+  const filtered = activeCat==='전체' ? services : services.filter(s=>(s.cat||'')===activeCat);
   document.getElementById('svcList').innerHTML=filtered.map(s=>{
     const isSel=selSvcIds.has(s.id);
     const nm=lang==='en'?(s.name.en||s.name.ko):s.name.ko;
@@ -1061,14 +1059,14 @@ async function doLookup(){
   if(!name||!phone){alert(lang==='en'?'Please enter name and phone':'이름과 연락처를 입력해주세요.');return;}
   const el=document.getElementById('lkResults');
   el.innerHTML='<div style="text-align:center;padding:18px;color:var(--sub);font-size:.8rem">조회 중...</div>';
-  // Supabase에서 먼저 조회
-  const supaFound = await loadBookingsFromSupa(name, phone);
-  let found = supaFound;
-  if(!found || !found.length){
-    // fallback: localStorage
-    loadData();
-    found = bookings.filter(b=>b.name===name&&b.phone===phone).sort((a,z)=>z.date.localeCompare(a.date));
-  }
+  // localStorage에서 조회
+  loadData();
+  let found = bookings.filter(b=>b.name===name&&b.phone===phone).sort((a,z)=>z.date.localeCompare(a.date));
+  // Supabase에서도 조회 (추가 데이터)
+  try{
+    const supaFound = await loadBookingsFromSupa(name, phone);
+    if(supaFound&&supaFound.length) found=supaFound;
+  }catch(e){}
   if(!found||!found.length){el.innerHTML=`<div class="lookup-card"><div style="text-align:center;padding:18px;color:var(--sub);font-size:.82rem">${lang==='en'?'No bookings found.':'일치하는 예약이 없습니다.'}</div></div>`;return;}
   el.innerHTML=found.map(b=>buildLkCard(b)).join('');
 }
