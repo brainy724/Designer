@@ -339,9 +339,22 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
 .d-k{color:var(--sub);}
 .d-v{font-weight:500;}
 
+/* 드래그 순서 변경 */
+.drag-handle{cursor:grab;color:var(--sub2);font-size:1.1rem;padding:0 4px;user-select:none;flex-shrink:0;}
+.drag-handle:active{cursor:grabbing;}
+.svc-drag-item.dragging{opacity:.35;}
+.svc-drag-item.drag-over{border-color:var(--pk)!important;background:var(--pk-light)!important;}
+/* 반복 휴무 */
+.repeat-dow{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;}
+.dow-btn{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--ln);background:var(--w);font-size:.74rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif;transition:all .13s;display:flex;align-items:center;justify-content:center;}
+.dow-btn.on{background:var(--pk);border-color:var(--pk);color:var(--w);font-weight:600;}
+.repeat-chip{background:var(--pk-light);border:1.5px solid var(--pk-mid);border-radius:20px;padding:3px 10px;font-size:.7rem;display:flex;align-items:center;gap:5px;color:var(--pk-dark);}
+.repeat-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
+
 /* mobile tabbar */
-.m-tabbar{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--w);border-top:1px solid var(--ln);z-index:200;padding:4px 0 2px;}
-.m-tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;background:none;border:none;font-family:'DM Sans','Noto Sans KR',sans-serif;font-size:.57rem;color:var(--sub);cursor:pointer;transition:color .12s;}
+.m-tabbar{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--w);border-top:1px solid var(--ln);z-index:200;padding:4px 0 2px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+.m-tabbar::-webkit-scrollbar{display:none;}
+.m-tab{flex-shrink:0;min-width:56px;display:flex;flex-direction:column;align-items:center;gap:1px;background:none;border:none;font-family:'DM Sans','Noto Sans KR',sans-serif;font-size:.57rem;color:var(--sub);cursor:pointer;transition:color .12s;padding:2px 4px;}
 .m-tab.on{color:var(--pk);}
 .m-tab-ico{font-size:1rem;}
 
@@ -526,6 +539,23 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
           <div class="pc" style="margin-bottom:14px">
             <div class="pc-title">📅 휴무일</div>
             <div class="off-help">달력을 클릭하면 휴무일로 설정/해제돼요. 휴무일은 예약 불가로 표시됩니다.</div>
+
+            <!-- 반복 요일 휴무 -->
+            <div style="background:var(--bg2);border-radius:8px;padding:11px 13px;margin-bottom:10px;border:1px solid var(--ln)">
+              <div style="font-size:.78rem;font-weight:500;margin-bottom:6px">🔁 매주 반복 휴무</div>
+              <div style="font-size:.7rem;color:var(--sub);margin-bottom:8px">요일을 선택하면 매주 자동으로 휴무 처리돼요</div>
+              <div class="repeat-dow">
+                <button class="dow-btn" id="dow-0" onclick="toggleDow(0)">일</button>
+                <button class="dow-btn" id="dow-1" onclick="toggleDow(1)">월</button>
+                <button class="dow-btn" id="dow-2" onclick="toggleDow(2)">화</button>
+                <button class="dow-btn" id="dow-3" onclick="toggleDow(3)">수</button>
+                <button class="dow-btn" id="dow-4" onclick="toggleDow(4)">목</button>
+                <button class="dow-btn" id="dow-5" onclick="toggleDow(5)">금</button>
+                <button class="dow-btn" id="dow-6" onclick="toggleDow(6)">토</button>
+              </div>
+              <div id="repeatDowList" style="font-size:.72rem;color:var(--pk-dark)"></div>
+            </div>
+
             <div class="cal-box" style="margin-bottom:10px">
               <div class="cal-nav">
                 <div class="cal-arr" id="offCalPrev2">‹</div>
@@ -598,6 +628,7 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
       <button class="m-tab" onclick="showPanel('customers',this);mTab(this)"><div class="m-tab-ico">◎</div>고객</button>
       <button class="m-tab" onclick="showPanel('menumanage',this);mTab(this)"><div class="m-tab-ico">✦</div>시술</button>
       <button class="m-tab" onclick="showPanel('reviews',this);mTab(this)"><div class="m-tab-ico">★</div>리뷰</button>
+      <button class="m-tab" onclick="showPanel('settings',this);mTab(this)"><div class="m-tab-ico">⊙</div>설정</button>
     </div>
   </div>
 </div>
@@ -670,6 +701,7 @@ let bookings = [
 let bkNextId = 6;
 
 let offDays = new Set();
+let recurringDows = new Set(); // 0=일, 1=월 ... 6=토
 let dayBlocks = []; // {date, startTime, endTime, reason}
 
 // 리뷰: {id, bookingId, stars, text, date, visitNum, reply, svcNames}
@@ -758,6 +790,57 @@ function setLang(l){
 
 
 
+// ── Supabase 설정 ──
+const SUPA_URL = 'https://oyooygykehhxfoffixej.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95b295Z3lrZWhoeGZvZmZpeGVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NzE2OTMsImV4cCI6MjA5MDA0NzY5M30.gQLYJAiwbLAIZfbdEGsIc22y1b3DOHim1xzMr_urmVw';
+
+async function sbFetch(path, options={}){
+  try{
+    const res = await fetch(SUPA_URL+'/rest/v1/'+path, {
+      headers:{
+        'apikey':SUPA_KEY,
+        'Authorization':'Bearer '+SUPA_KEY,
+        'Content-Type':'application/json',
+        'Prefer':options.prefer||'return=representation',
+        ...options.headers
+      },
+      ...options
+    });
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+  }catch(e){return null;}
+}
+
+// 모든 예약 Supabase에서 로드
+async function loadBookingsFromSupa(){
+  const data = await sbFetch('bookings?order=date.desc');
+  if(data&&data.length){
+    bookings = data.map(b=>({
+      id:b.id, name:b.name, phone:b.phone,
+      services:b.services||[], date:b.date,
+      startTime:b.start_time, endTime:b.end_time,
+      totalDurH:b.total_dur_h, totalPrice:b.total_price,
+      note:b.note||'', status:b.status
+    }));
+  }
+}
+
+// 예약 상태 Supabase에 업데이트
+async function updateBookingStatusSupa(id, status){
+  await sbFetch(`bookings?id=eq.${id}`, {
+    method:'PATCH', prefer:'return=minimal',
+    body: JSON.stringify({status})
+  });
+}
+
+// 리뷰 댓글 Supabase에 업데이트
+async function updateReplySupa(id, reply){
+  await sbFetch(`reviews?id=eq.${id}`, {
+    method:'PATCH', prefer:'return=minimal',
+    body: JSON.stringify({reply})
+  });
+}
+
 // ── 데이터 저장/로드 ──
 function saveData(){
   try{
@@ -765,6 +848,7 @@ function saveData(){
     localStorage.setItem('sera_bookings',JSON.stringify(bookings));
     localStorage.setItem('sera_reviews',JSON.stringify(reviews));
     localStorage.setItem('sera_offDays',JSON.stringify([...offDays]));
+    localStorage.setItem('sera_recurringDows',JSON.stringify([...recurringDows]));
     localStorage.setItem('sera_dayBlocks',JSON.stringify(dayBlocks));
     localStorage.setItem('sera_custNotes',JSON.stringify(custNotes));
     localStorage.setItem('sera_custPhotos',JSON.stringify(custPhotos));
@@ -778,6 +862,7 @@ function loadData(){
     const bv=localStorage.getItem('sera_bookings');if(bv)bookings=JSON.parse(bv);
     const rv=localStorage.getItem('sera_reviews'); if(rv)reviews=JSON.parse(rv);
     const od=localStorage.getItem('sera_offDays'); if(od)offDays=new Set(JSON.parse(od));
+    const rd=localStorage.getItem('sera_recurringDows'); if(rd)recurringDows=new Set(JSON.parse(rd));
     const db=localStorage.getItem('sera_dayBlocks');if(db)dayBlocks=JSON.parse(db);
     const cn=localStorage.getItem('sera_custNotes');if(cn)custNotes=JSON.parse(cn);
     const cp=localStorage.getItem('sera_custPhotos');if(cp)custPhotos=JSON.parse(cp);
@@ -862,7 +947,8 @@ function doLogout(){
 }
 
 function initAdmin(){
-  renderDash();
+  loadData();
+  loadBookingsFromSupa().then(()=>renderDash()); // Supabase에서 최신 예약 로드
   initNbForm();
   populateBlockSelects();
   renderSvcEditor();
@@ -877,17 +963,23 @@ function renderMenuManage(){
   const c=document.getElementById('set-close2');
   if(o) o.value=OPEN;
   if(c) c.value=CLOSE;
+  renderDowButtons();
   // 시술 목록
   const el=document.getElementById('svcEditorList2');
   if(!el) return;
   el.innerHTML=services.length ? services.map(s=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:12px 14px;border:1.5px solid var(--ln);border-radius:9px;margin-bottom:7px;background:var(--bg)">
+    <div class="svc-drag-item" data-id="${s.id}" draggable="true"
+      ondragstart="onDragStart(event,${s.id})" ondragend="onDragEnd(event)"
+      ondragover="onDragOver(event,${s.id})" ondrop="onDrop(event,${s.id})"
+      ontouchstart="onTouchStart(event,${s.id})" ontouchmove="onTouchMove(event)" ontouchend="onTouchEnd(event)"
+      style="display:flex;align-items:center;gap:8px;padding:12px 14px;border:1.5px solid var(--ln);border-radius:9px;margin-bottom:7px;background:var(--bg)">
+      <span class="drag-handle" title="드래그해서 순서 변경">⠿</span>
       <div style="flex:1">
         <div style="font-size:.88rem;font-weight:500">${s.name.ko}</div>
-        <div style="font-size:.74rem;color:var(--sub);margin-top:3px">${fmtMoney(s.price)} &nbsp;·&nbsp; ${fmtDur(s.durH)}${s.desc&&s.desc.ko?' &nbsp;·&nbsp; '+s.desc.ko:''}</div>
+        <div style="font-size:.74rem;color:var(--sub);margin-top:3px">${fmtMoney(s.price)} · ${fmtDur(s.durH)}${s.desc&&s.desc.ko?' · '+s.desc.ko:''}</div>
       </div>
-      <button onclick="openEditSvc(${s.id})" style="padding:7px 14px;border:1.5px solid var(--ln);border-radius:7px;background:var(--w);font-size:.78rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif;transition:all .13s" onmouseover="this.style.borderColor='var(--tx)'" onmouseout="this.style.borderColor='var(--ln)'">편집</button>
-      <button onclick="deleteSvc(${s.id})" style="padding:7px 12px;border:1.5px solid var(--ln);border-radius:7px;background:var(--w);font-size:.78rem;cursor:pointer;color:var(--red);font-family:'DM Sans','Noto Sans KR',sans-serif;transition:all .13s" onmouseover="this.style.borderColor='var(--red)'" onmouseout="this.style.borderColor='var(--ln)'">삭제</button>
+      <button onclick="openEditSvc(${s.id})" style="padding:7px 14px;border:1.5px solid var(--ln);border-radius:7px;background:var(--w);font-size:.78rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">편집</button>
+      <button onclick="deleteSvc(${s.id})" style="padding:7px 12px;border:1.5px solid #DEC0C0;border-radius:7px;background:var(--red-bg);font-size:.78rem;cursor:pointer;color:var(--red);font-family:'DM Sans','Noto Sans KR',sans-serif">삭제</button>
     </div>`).join('')
   : '<div style="text-align:center;padding:24px;color:var(--sub2);font-size:.8rem">시술이 없습니다. + 추가 버튼을 눌러 추가해주세요.</div>';
 }
@@ -1310,10 +1402,12 @@ function renderOffCal(){
   for(let i=0;i<first;i++)html+=`<div class="cal-d emp"></div>`;
   for(let d=1;d<=days;d++){
     const ds=`${offCalY}-${pad(offCalM+1)}-${pad(d)}`;
-    const isOff=offDays.has(ds),isTd=ds===todayStr,isSun=new Date(ds+'T00:00:00').getDay()===0;
+    const isOff=isOffDay(ds),isTd=ds===todayStr,isSun=new Date(ds+'T00:00:00').getDay()===0;
+    const isRecurring=recurringDows.has(new Date(ds+'T00:00:00').getDay())&&!offDays.has(ds);
     let cls='cal-d';
     if(isTd)cls+=' today'; if(isOff)cls+=' sel'; if(isSun&&!isOff)cls+=' sun';
-    html+=`<div class="${cls}" onclick="toggleOff('${ds}')">${d}</div>`;
+    if(isRecurring)cls+=' offday';
+    html+=`<div class="${cls}" onclick="toggleOff('${ds}')" title="${isRecurring?'반복 휴무':''}">${d}</div>`;
   }
   gridEl.innerHTML=html;
   if(prevEl) prevEl.onclick=()=>navCal('off',-1);
@@ -1325,10 +1419,126 @@ function renderOffCal(){
 }
 function toggleOff(ds){if(offDays.has(ds))offDays.delete(ds);else offDays.add(ds);saveData();renderOffCal();}
 
+// ── 반복 요일 휴무 ──
+const DOW_NAMES = ['일','월','화','수','목','금','토'];
+function isOffDay(ds){
+  if(offDays.has(ds)) return true;
+  const dow = new Date(ds+'T00:00:00').getDay();
+  return recurringDows.has(dow);
+}
+function toggleDow(dow){
+  if(recurringDows.has(dow)) recurringDows.delete(dow);
+  else recurringDows.add(dow);
+  saveData();
+  renderDowButtons();
+  renderOffCal();
+}
+function renderDowButtons(){
+  DOW_NAMES.forEach((name,i)=>{
+    const btn=document.getElementById('dow-'+i);
+    if(btn) btn.classList.toggle('on', recurringDows.has(i));
+  });
+  const listEl=document.getElementById('repeatDowList');
+  if(!listEl) return;
+  if(recurringDows.size===0){
+    listEl.textContent='선택된 반복 요일 없음';
+    listEl.style.color='var(--sub2)';
+  } else {
+    const names=[...recurringDows].sort().map(d=>`매주 ${DOW_NAMES[d]}요일`).join(', ');
+    listEl.textContent='✅ '+names+' 휴무';
+    listEl.style.color='var(--pk-dark)';
+  }
+}
+
+// ── 드래그 순서 변경 ──
+let dragSrcId = null;
+function onDragStart(e, id){
+  dragSrcId = parseInt(id);
+  setTimeout(()=>e.target.classList.add('dragging'), 0);
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', String(id));
+}
+function onDragEnd(e){
+  e.target.classList.remove('dragging');
+  document.querySelectorAll('.svc-drag-item').forEach(el=>el.classList.remove('drag-over'));
+  dragSrcId = null;
+}
+function onDragOver(e, id){
+  e.preventDefault();
+  document.querySelectorAll('.svc-drag-item').forEach(el=>el.classList.remove('drag-over'));
+  if(dragSrcId !== parseInt(id)) e.currentTarget.classList.add('drag-over');
+}
+function onDrop(e, id){
+  e.preventDefault();
+  e.stopPropagation();
+  const dstId = parseInt(id);
+  if(dragSrcId === null || dragSrcId === dstId){ dragSrcId=null; return; }
+  const srcIdx = services.findIndex(s=>s.id===dragSrcId);
+  const dstIdx = services.findIndex(s=>s.id===dstId);
+  if(srcIdx < 0 || dstIdx < 0){ dragSrcId=null; return; }
+  const [moved] = services.splice(srcIdx, 1);
+  services.splice(dstIdx, 0, moved);
+  dragSrcId = null;
+  saveData();
+  renderMenuManage();
+}
+
+// 터치 드래그 (모바일)
+let touchDragId = null, touchClone = null, touchSrcEl = null;
+function onTouchStart(e, id){
+  touchDragId = parseInt(id);
+  touchSrcEl = e.currentTarget;
+  const rect = touchSrcEl.getBoundingClientRect();
+  touchClone = touchSrcEl.cloneNode(true);
+  touchClone.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;opacity:.75;pointer-events:none;z-index:9999;border-radius:9px;box-shadow:0 4px 16px rgba(0,0,0,.15);`;
+  document.body.appendChild(touchClone);
+  touchSrcEl.style.opacity = '.3';
+}
+function onTouchMove(e){
+  if(!touchClone) return;
+  e.preventDefault();
+  const t = e.touches[0];
+  touchClone.style.left = (t.clientX - touchClone.offsetWidth/2) + 'px';
+  touchClone.style.top  = (t.clientY - 30) + 'px';
+  document.querySelectorAll('.svc-drag-item').forEach(el=>{
+    el.classList.remove('drag-over');
+    if(el === touchSrcEl) return;
+    const r = el.getBoundingClientRect();
+    if(t.clientY >= r.top && t.clientY <= r.bottom)
+      el.classList.add('drag-over');
+  });
+}
+function onTouchEnd(e){
+  if(!touchClone){ touchDragId=null; return; }
+  const t = e.changedTouches[0];
+  touchClone.remove(); touchClone = null;
+  if(touchSrcEl) touchSrcEl.style.opacity = '';
+  document.querySelectorAll('.svc-drag-item').forEach(el=>el.classList.remove('drag-over'));
+  // 드롭 위치 찾기
+  let targetId = null;
+  document.querySelectorAll('.svc-drag-item').forEach(el=>{
+    if(el === touchSrcEl) return;
+    const r = el.getBoundingClientRect();
+    if(t.clientY >= r.top && t.clientY <= r.bottom)
+      targetId = parseInt(el.dataset.id);
+  });
+  if(targetId !== null && targetId !== touchDragId){
+    const srcIdx = services.findIndex(s=>s.id===touchDragId);
+    const dstIdx = services.findIndex(s=>s.id===targetId);
+    if(srcIdx >= 0 && dstIdx >= 0){
+      const [moved] = services.splice(srcIdx, 1);
+      services.splice(dstIdx, 0, moved);
+      saveData();
+      renderMenuManage();
+    }
+  }
+  touchDragId = null; touchSrcEl = null;
+}
+
 // ── 공통 ──
 function closeModal(id){document.getElementById(id).classList.remove('on');}
 window.addEventListener('click',e=>{if(e.target.classList.contains('modal-bg'))e.target.classList.remove('on');});
-function chgStatus(id,s){bookings.find(b=>b.id===id).status=s;saveData();}
+function chgStatus(id,s){bookings.find(b=>b.id===id).status=s;saveData();updateBookingStatusSupa(id,s);}
 function sBadge(s){return {pending:'sb-pending',confirmed:'sb-confirmed',done:'sb-done',cancelled:'sb-cancelled',cancel_req:'sb-req',change_req:'sb-chgreq'}[s]||'';}
 function sLabel(s){return {pending:'대기',confirmed:'확정',done:'완료',cancelled:'취소',cancel_req:'취소요청',change_req:'변경요청'}[s]||s;}
 
