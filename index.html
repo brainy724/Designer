@@ -1123,43 +1123,48 @@ function resetBooking(){
 async function doLookup(){
   const name = document.getElementById('lkName').value.trim();
   const phone = document.getElementById('lkPhone').value.trim();
-  if(!name||!phone){
-    alert('이름과 연락처를 입력해주세요.');
-    return;
-  }
+  if(!name||!phone){ alert('이름과 연락처를 입력해주세요.'); return; }
   const el = document.getElementById('lkResults');
   el.innerHTML = '<div style="text-align:center;padding:18px;color:var(--sub);font-size:.8rem">조회 중...</div>';
 
   let found = [];
 
-  // 1. Supabase에서 조회 시도
+  // Supabase에서 전체 조회 후 JS에서 필터링 (한글 인코딩 문제 완전 회피)
   try {
-    const res = await sbFetch(`bookings?name=eq.${name}&phone=eq.${phone}&order=date.desc`, {
-      headers: { 'Accept': 'application/json' }
+    const res = await fetch(SUPA_URL + '/rest/v1/bookings?order=date.desc', {
+      method: 'GET',
+      headers: {
+        'apikey': SUPA_KEY,
+        'Authorization': 'Bearer ' + SUPA_KEY,
+        'Content-Type': 'application/json'
+      }
     });
-    if(res && res.length){
-      found = res.map(b=>({
-        id:b.id, name:b.name, phone:b.phone,
-        services:b.services||[], date:b.date,
-        startTime:b.start_time, endTime:b.end_time,
-        totalDurH:b.total_dur_h, totalPrice:b.total_price,
-        note:b.note||'', status:b.status
-      }));
-      found.forEach(sb=>{
-        const idx = bookings.findIndex(b=>b.id===sb.id);
-        if(idx>=0) bookings[idx]=sb;
-        else bookings.push(sb);
-      });
-      saveData();
+    if(res.ok){
+      const data = await res.json();
+      const matched = data.filter(b => b.name === name && b.phone === phone);
+      if(matched.length){
+        found = matched.map(b=>({
+          id:b.id, name:b.name, phone:b.phone,
+          services:b.services||[], date:b.date,
+          startTime:b.start_time, endTime:b.end_time,
+          totalDurH:b.total_dur_h, totalPrice:b.total_price,
+          note:b.note||'', status:b.status
+        }));
+        // localStorage에 동기화
+        found.forEach(sb=>{
+          const idx = bookings.findIndex(b=>b.id===sb.id);
+          if(idx>=0) bookings[idx]=sb; else bookings.push(sb);
+        });
+        saveData();
+      }
     }
   } catch(e){}
 
-  // 2. Supabase에서 못 찾으면 localStorage 조회
+  // Supabase 실패시 localStorage 조회
   if(!found.length){
     loadData();
-    found = bookings
-      .filter(b=>b.name===name && b.phone===phone)
-      .sort((a,z)=>z.date.localeCompare(a.date));
+    found = bookings.filter(b=>b.name===name&&b.phone===phone)
+                    .sort((a,z)=>z.date.localeCompare(a.date));
   }
 
   if(!found.length){

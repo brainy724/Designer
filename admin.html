@@ -1347,6 +1347,16 @@ function submitAdminBooking(){
 }
 
 // ── 고객 관리 ──
+function deleteCustomer(phone, name, e){
+  e.stopPropagation();
+  if(!confirm(`${name} 고객의 모든 예약 데이터를 삭제할까요?\n(복구 불가)`)){ return; }
+  bookings = bookings.filter(b=>b.phone!==phone);
+  delete custNotes[phone];
+  delete custPhotos[phone];
+  saveData();
+  renderCustomers(document.getElementById('custSearch').value);
+}
+
 function renderCustomers(filter=''){
   const map={};
   bookings.forEach(b=>{if(!map[b.phone])map[b.phone]={name:b.name,phone:b.phone,list:[]};map[b.phone].list.push(b);});
@@ -1362,6 +1372,7 @@ function renderCustomers(filter=''){
         <div class="cust-meta">${c.phone} · ${done.length}회 방문${revisit?' · 🔔 재방문알림':''}</div>
       </div>
       ${done.length>=3?'<span class="sbadge sb-confirmed">VIP</span>':''}
+      <button onclick="deleteCustomer('${c.phone}','${c.name}',event)" style="margin-left:auto;padding:5px 10px;border:1.5px solid #DEC0C0;border-radius:6px;background:var(--red-bg);color:var(--red);font-size:.72rem;cursor:pointer;flex-shrink:0;font-family:'DM Sans','Noto Sans KR',sans-serif">삭제</button>
     </div>`;
   }).join('')||'<div class="empty-msg">고객이 없습니다</div>';
 }
