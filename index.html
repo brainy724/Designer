@@ -1133,6 +1133,11 @@ async function doLookup(){
   let found = bookings.filter(b=>b.name===name&&b.phone===phone)
                       .sort((a,z)=>z.date.localeCompare(a.date));
 
+  // 디버그: localStorage 상태 보여주기
+  if(!found.length){
+    alert(`localStorage 결과 없음\n이름입력: "${name}"\n연락처입력: "${phone}"\n저장된 예약수: ${bookings.length}개\n${bookings.length>0?'첫번째: '+bookings[0].name+'/'+bookings[0].phone:''}`);
+  }
+
   // Supabase 조회
   try {
     const data = await new Promise((resolve, reject)=>{
@@ -1150,6 +1155,7 @@ async function doLookup(){
       xhr.send();
     });
     const supaFound = data.filter(b=>b.name===name && b.phone===phone);
+    alert(`Supabase 결과: ${data.length}건 중 ${supaFound.length}건 매칭`);
     if(supaFound.length){
       found = supaFound.map(b=>({
         id:b.id, name:b.name, phone:b.phone,
@@ -1165,7 +1171,7 @@ async function doLookup(){
       saveData();
     }
   } catch(e){
-    // 네트워크 실패시 localStorage 결과 사용
+    alert('Supabase 오류: '+e.message);
   }
 
   if(!found.length){
