@@ -994,7 +994,7 @@ function saveSettings(){
   if(!o||!c){msg.style.display='block';msg.style.background='var(--red-bg)';msg.style.color='var(--red)';msg.textContent='⚠️ 시간을 입력해주세요.';return;}
   if(o>=c){msg.style.display='block';msg.style.background='var(--red-bg)';msg.style.color='var(--red)';msg.textContent='⚠️ 마감 시간이 시작 시간보다 늦어야 해요.';return;}
   OPEN=o; CLOSE=c;
-  saveData(); saveSettingsToSupa();
+  saveData(); saveSettingsToSupa().catch(()=>{});
   msg.style.display='block';
   msg.style.background='var(--grn-bg)';
   msg.style.color='var(--grn)';
@@ -1087,7 +1087,7 @@ async function initAdmin(){
   renderSvcEditor();
   renderMenuManage();
   // 현재 설정 Supabase에 자동 저장 (카톡 인앱브라우저 대응)
-  saveSettingsToSupa();
+  saveSettingsToSupa().catch(()=>{});
 }
 
 function renderMenuManage(){
@@ -1130,7 +1130,7 @@ function saveHours(){
     msg.textContent='⚠️ 마감 시간이 시작 시간보다 늦어야 해요.';return;
   }
   OPEN=o; CLOSE=c;
-  saveData(); saveSettingsToSupa();
+  saveData(); saveSettingsToSupa().catch(()=>{});
   msg.style.display='block';
   msg.style.background='var(--grn-bg)';msg.style.color='var(--grn)';
   msg.textContent=`✅ 저장됐어요! 예약 가능 시간: ${OPEN} ~ ${CLOSE}`;
@@ -1286,7 +1286,7 @@ function adjustTime(id){
   if(!ns||!ne||ns>=ne){alert('올바른 시간을 입력해주세요.');return;}
   b.startTime=ns;b.endTime=ne;
   saveData();
-  updateBookingTimeSupa(id,ns,ne);
+  updateBookingTimeSupa(id,ns,ne).catch(()=>{});
   alert('시간이 조정되었습니다.');closeModal('bkModal');renderDash();
 }
 
@@ -1459,9 +1459,9 @@ function saveSvc(){
   } else {
     services.push({id:svcNextId++,name:{ko:name,en:name},price,durH,desc:{ko:desc,en:desc},cat});
   }
-  closeModal('svcModal');saveData();saveSettingsToSupa();renderSvcEditor();renderMenuManage();
+  closeModal('svcModal');saveData();saveSettingsToSupa().catch(()=>{});renderSvcEditor();renderMenuManage();
 }
-function deleteSvc(id){if(!confirm('삭제할까요?'))return;services=services.filter(s=>s.id!==id);saveData();saveSettingsToSupa();renderSvcEditor();renderMenuManage();}
+function deleteSvc(id){if(!confirm('삭제할까요?'))return;services=services.filter(s=>s.id!==id);saveData();saveSettingsToSupa().catch(()=>{});renderSvcEditor();renderMenuManage();}
 
 // ── 리뷰 관리 ──
 function renderAdminReviews(){
@@ -1492,8 +1492,8 @@ function renderAdminReviews(){
     :'<div class="empty-msg">리뷰가 없습니다</div>';
 }
 function toggleAdminReply(id){const el=document.getElementById('replyForm-'+id);el.style.display=el.style.display==='none'?'block':'none';}
-function saveReply(id){const rv=reviews.find(r=>r.id===id);rv.reply=document.getElementById('replyText-'+id).value.trim();saveData();updateReplySupa(id,rv.reply);renderAdminReviews();}
-function deleteReview(id){if(!confirm('리뷰를 삭제할까요?'))return;reviews=reviews.filter(r=>r.id!==id);saveData();deleteReviewSupa(id);renderAdminReviews();}
+function saveReply(id){const rv=reviews.find(r=>r.id===id);rv.reply=document.getElementById('replyText-'+id).value.trim();saveData();updateReplySupa(id,rv.reply).catch(()=>{});renderAdminReviews();}
+function deleteReview(id){if(!confirm('리뷰를 삭제할까요?'))return;reviews=reviews.filter(r=>r.id!==id);saveData();deleteReviewSupa(id).catch(()=>{});renderAdminReviews();}
 
 // ── 휴무·차단 ──
 function populateBlockSelects(){
@@ -1704,7 +1704,7 @@ function closeImgViewer(){
   document.body.style.overflow='';
 }
 window.addEventListener('click',e=>{if(e.target.classList.contains('modal-bg'))e.target.classList.remove('on');});
-function chgStatus(id,s){bookings.find(b=>b.id===id).status=s;saveData();updateBookingStatusSupa(id,s);}
+function chgStatus(id,s){bookings.find(b=>b.id===id).status=s;saveData();updateBookingStatusSupa(id,s).catch(()=>{});}
 function sBadge(s){return {pending:'sb-pending',confirmed:'sb-confirmed',done:'sb-done',cancelled:'sb-cancelled',cancel_req:'sb-req',change_req:'sb-chgreq'}[s]||'';}
 function sLabel(s){return {pending:'대기',confirmed:'확정',done:'완료',cancelled:'취소',cancel_req:'취소요청',change_req:'변경요청'}[s]||s;}
 

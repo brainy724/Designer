@@ -723,11 +723,15 @@ async function sbFetch(table, options={}){
         'apikey': SUPA_KEY,
         'Authorization': 'Bearer ' + SUPA_KEY,
         'Content-Type': 'application/json',
-        'Prefer': options.prefer || 'return=representation'
+        'Prefer': options.prefer || 'return=representation',
+        ...(options.headers||{})
       },
       body: options.body || undefined
     });
-    if(!res.ok) return null;
+    if(!res.ok){
+      console.log('Supabase 오류:', res.status, await res.text());
+      return null;
+    }
     const text = await res.text();
     return text ? JSON.parse(text) : [];
   } catch(e) { return null; }
@@ -1070,7 +1074,7 @@ function submitBooking(){
     date:sel.date,startTime:sel.startTime,endTime:sel.endTime,
     totalDurH,totalPrice,note,status:'pending'};
   bookings.push(b);saveData();
-  saveBookingToSupa(b);
+  saveBookingToSupa(b).catch(()=>{});
   const selNames=selArr.map(s=>lang==='en'?(s.name.en||s.name.ko):s.name.ko).join(', ');
   document.getElementById('doneSummary').innerHTML=
     `<div class="sum-row"><span class="sum-k">${lang==='en'?'Name':'이름'}</span><span class="sum-v">${name}</span></div>`+
@@ -1130,7 +1134,9 @@ async function doLookup(){
 
   // 1. Supabase에서 조회 시도
   try {
-    const res = await sbFetch(`bookings?name=eq.${encodeURIComponent(name)}&phone=eq.${encodeURIComponent(phone)}&order=date.desc`);
+    const res = await sbFetch(`bookings?name=eq.${name}&phone=eq.${phone}&order=date.desc`, {
+      headers: { 'Accept': 'application/json' }
+    });
     if(res && res.length){
       found = res.map(b=>({
         id:b.id, name:b.name, phone:b.phone,
@@ -1139,7 +1145,6 @@ async function doLookup(){
         totalDurH:b.total_dur_h, totalPrice:b.total_price,
         note:b.note||'', status:b.status
       }));
-      // localStorage에도 동기화
       found.forEach(sb=>{
         const idx = bookings.findIndex(b=>b.id===sb.id);
         if(idx>=0) bookings[idx]=sb;
@@ -1198,7 +1203,7 @@ function submitChgReq(id){
   b.reqTime=document.getElementById('chgtime-'+id).value;
   b.reqReason=document.getElementById('chgreason-'+id).value;
   saveData();
-  updateBookingStatusSupa(id,'change_req');
+  updateBookingStatusSupa(id,'change_req').catch(()=>{});
   document.getElementById('lkcard-'+id).outerHTML=buildLkCard(b);
   alert(lang==='en'?'Change request submitted!':'변경 요청이 접수되었습니다.');
 }
@@ -1206,7 +1211,7 @@ function submitCancelReq(id){
   if(!confirm(lang==='en'?'Request cancellation?':'취소를 요청할까요?'))return;
   const b=bookings.find(x=>x.id===id);b.status='cancel_req';
   saveData();
-  updateBookingStatusSupa(id,'cancel_req');
+  updateBookingStatusSupa(id,'cancel_req').catch(()=>{});
   document.getElementById('lkcard-'+id).outerHTML=buildLkCard(b);
 }
 
@@ -1292,7 +1297,7 @@ function submitReview(){
   const photos=[...rvPhotos];
   const existing=reviews.find(r=>r.bookingId===bkId);
   if(existing){existing.stars=rvStars;existing.text=text;existing.photos=photos;existing.date=df(TODAY);saveData();}
-  else{const rv={id:rvNextId++,bookingId:bkId,stars:rvStars,text,photos,date:df(TODAY),visitNum,svcNames,reply:''};reviews.push(rv);saveData();saveReviewToSupa(rv);}
+  else{const rv={id:rvNextId++,bookingId:bkId,stars:rvStars,text,photos,date:df(TODAY),visitNum,svcNames,reply:''};reviews.push(rv);saveData();saveReviewToSupa(rv).catch(()=>{});}
   alert(lang==='en'?'Review submitted! Thank you 😊':'리뷰가 등록되었습니다! 감사합니다 😊');
   document.getElementById('rvBookingSelect').style.display='none';
   document.getElementById('rvName').value='';document.getElementById('rvPhone').value='';
