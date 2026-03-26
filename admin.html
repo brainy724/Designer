@@ -683,12 +683,12 @@ const todayStr = df(TODAY);
 let lang = 'ko';
 
 let services = [
-  {id:1,name:{ko:'커트',en:'Cut'},price:35000,durH:1,desc:{ko:'스타일링 포함',en:'Incl. styling'}},
-  {id:2,name:{ko:'염색',en:'Color'},price:90000,durH:2,desc:{ko:'모발 상태에 따라 변동',en:'Varies by hair condition'}},
-  {id:3,name:{ko:'펌',en:'Perm'},price:110000,durH:2.5,desc:{ko:'매직/볼륨 선택',en:'Magic/Volume available'}},
-  {id:4,name:{ko:'커트+드라이',en:'Cut & Blowdry'},price:45000,durH:1,desc:{ko:'',en:''}},
-  {id:5,name:{ko:'클리닉 트리트먼트',en:'Clinic Treatment'},price:50000,durH:1,desc:{ko:'두피 케어 포함',en:'Incl. scalp care'}},
-  {id:6,name:{ko:'탈색',en:'Bleach'},price:80000,durH:1.5,desc:{ko:'',en:''}},
+  {id:1,name:{ko:'커트',en:'Cut'},price:35000,durH:1,desc:{ko:'스타일링 포함',en:'Incl. styling'},cat:'커트'},
+  {id:2,name:{ko:'염색',en:'Color'},price:90000,durH:2,desc:{ko:'모발 상태에 따라 변동',en:'Varies by hair condition'},cat:'컬러'},
+  {id:3,name:{ko:'펌',en:'Perm'},price:110000,durH:2.5,desc:{ko:'매직/볼륨 선택',en:'Magic/Volume available'},cat:'펌'},
+  {id:4,name:{ko:'커트+드라이',en:'Cut & Blowdry'},price:45000,durH:1,desc:{ko:'',en:''},cat:'커트'},
+  {id:5,name:{ko:'클리닉 트리트먼트',en:'Clinic Treatment'},price:50000,durH:1,desc:{ko:'두피 케어 포함',en:'Incl. scalp care'},cat:'클리닉'},
+  {id:6,name:{ko:'탈색',en:'Bleach'},price:80000,durH:1.5,desc:{ko:'',en:''},cat:'컬러'},
 ];
 let svcNextId = 7;
 
@@ -860,6 +860,7 @@ function saveData(){
 function loadData(){
   try{
     const sv=localStorage.getItem('sera_services');if(sv)services=JSON.parse(sv);
+    services=services.map(s=>({...s,cat:s.cat||''}));
     const bv=localStorage.getItem('sera_bookings');if(bv)bookings=JSON.parse(bv);
     const rv=localStorage.getItem('sera_reviews'); if(rv)reviews=JSON.parse(rv);
     const od=localStorage.getItem('sera_offDays'); if(od)offDays=new Set(JSON.parse(od));
