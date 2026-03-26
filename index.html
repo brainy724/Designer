@@ -1133,11 +1133,6 @@ async function doLookup(){
   let found = bookings.filter(b=>b.name===name&&b.phone===phone)
                       .sort((a,z)=>z.date.localeCompare(a.date));
 
-  // 디버그: localStorage 상태 보여주기
-  if(!found.length){
-    alert(`localStorage 결과 없음\n이름입력: "${name}"\n연락처입력: "${phone}"\n저장된 예약수: ${bookings.length}개\n${bookings.length>0?'첫번째: '+bookings[0].name+'/'+bookings[0].phone:''}`);
-  }
-
   // Supabase 조회
   try {
     const data = await new Promise((resolve, reject)=>{
@@ -1155,7 +1150,6 @@ async function doLookup(){
       xhr.send();
     });
     const supaFound = data.filter(b=>b.name===name && b.phone===phone);
-    alert(`Supabase 결과: ${data.length}건 중 ${supaFound.length}건 매칭`);
     if(supaFound.length){
       found = supaFound.map(b=>({
         id:b.id, name:b.name, phone:b.phone,
@@ -1170,9 +1164,7 @@ async function doLookup(){
       });
       saveData();
     }
-  } catch(e){
-    alert('Supabase 오류: '+e.message);
-  }
+  } catch(e){}
 
   if(!found.length){
     el.innerHTML=`<div class="lookup-card"><div style="text-align:center;padding:18px;color:var(--sub);font-size:.82rem">일치하는 예약이 없습니다.</div></div>`;
@@ -1180,6 +1172,9 @@ async function doLookup(){
   }
   el.innerHTML=found.map(b=>buildLkCard(b)).join('');
 }
+function sBadge(s){return {pending:'sb-pending',confirmed:'sb-confirmed',done:'sb-done',cancelled:'sb-cancelled',cancel_req:'sb-req',change_req:'sb-chgreq'}[s]||'';}
+function sLabel(s){return {pending:'대기',confirmed:'확정',done:'완료',cancelled:'취소',cancel_req:'취소요청',change_req:'변경요청'}[s]||s;}
+
 function buildLkCard(b){
   const canAct=b.status==='pending'||b.status==='confirmed';
   const svcNames=b.services.map(s=>s.name).join(', ');
