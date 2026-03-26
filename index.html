@@ -777,15 +777,40 @@ async function updateBookingStatusSupa(id, status){
   await sbFetch(`bookings?id=eq.${id}`, { method:'PATCH', prefer:'return=minimal', body: JSON.stringify({status}) });
 }
 
-// 리뷰 저장
-// 예약 상태 업데이트
-async function updateBookingStatusSupa(id, status){
-  await sbFetch(`bookings?id=eq.${id}`, {
-    method:'PATCH', prefer:'return=minimal',
-    body: JSON.stringify({status})
+// 설정(시술메뉴, 영업시간, 휴무일) Supabase 저장
+async function saveSettingsToSupa(){
+  const data = {
+    services: services,
+    open: OPEN, close: CLOSE,
+    offDays: [...offDays],
+    recurringDows: [...recurringDows],
+    dayBlocks: dayBlocks
+  };
+  // upsert (있으면 업데이트, 없으면 삽입)
+  await sbFetch('settings', {
+    method:'POST',
+    prefer:'resolution=merge-duplicates,return=minimal',
+    body: JSON.stringify({ key:'app_settings', value: data })
   });
 }
 
+// 설정 Supabase에서 불러오기
+async function loadSettingsFromSupa(){
+  const res = await sbFetch('settings?key=eq.app_settings');
+  if(!res || !res.length) return false;
+  const data = res[0].value;
+  if(data.services && data.services.length){
+    services = data.services.map(s=>({...s, cat:s.cat||''}));
+  }
+  if(data.open) OPEN = data.open;
+  if(data.close) CLOSE = data.close;
+  if(data.offDays) offDays = new Set(data.offDays);
+  if(data.recurringDows) recurringDows = new Set(data.recurringDows);
+  if(data.dayBlocks) dayBlocks = data.dayBlocks;
+  return true;
+}
+
+// 리뷰 저장
 async function saveReviewToSupa(rv){
   await sbFetch('reviews', {
     method:'POST', prefer:'return=minimal',
@@ -1092,27 +1117,51 @@ function resetBooking(){
 // 예약 확인
 // ═══════════════════════════════════════════════════
 async function doLookup(){
-  const name=document.getElementById('lkName').value.trim();
-  const phone=document.getElementById('lkPhone').value.trim();
-  if(!name||!phone){alert(lang==='en'?'Please enter name and phone':'이름과 연락처를 입력해주세요.');return;}
-  const el=document.getElementById('lkResults');
-  el.innerHTML='<div style="text-align:center;padding:18px;color:var(--sub);font-size:.8rem">조회 중...</div>';
-  loadData();
-  let found = bookings.filter(b=>b.name===name&&b.phone===phone).sort((a,z)=>z.date.localeCompare(a.date));
-  // Supabase에서 최신 데이터 조회 후 localStorage에도 동기화
-  const supaFound = await loadBookingsFromSupa(name, phone);
-  if(supaFound && supaFound.length){
-    found = supaFound;
-    // Supabase 데이터를 localStorage에 병합
-    supaFound.forEach(sb=>{
-      const idx = bookings.findIndex(b=>b.id===sb.id);
-      if(idx>=0) bookings[idx]=sb; // 업데이트
-      else bookings.push(sb); // 새로 추가
-    });
-    saveData();
+  const name = document.getElementById('lkName').value.trim();
+  const phone = document.getElementById('lkPhone').value.trim();
+  if(!name||!phone){
+    alert('이름과 연락처를 입력해주세요.');
+    return;
   }
-  if(!found||!found.length){el.innerHTML=`<div class="lookup-card"><div style="text-align:center;padding:18px;color:var(--sub);font-size:.82rem">${lang==='en'?'No bookings found.':'일치하는 예약이 없습니다.'}</div></div>`;return;}
-  el.innerHTML=found.map(b=>buildLkCard(b)).join('');
+  const el = document.getElementById('lkResults');
+  el.innerHTML = '<div style="text-align:center;padding:18px;color:var(--sub);font-size:.8rem">조회 중...</div>';
+
+  let found = [];
+
+  // 1. Supabase에서 조회 시도
+  try {
+    const res = await sbFetch(`bookings?name=eq.${encodeURIComponent(name)}&phone=eq.${encodeURIComponent(phone)}&order=date.desc`);
+    if(res && res.length){
+      found = res.map(b=>({
+        id:b.id, name:b.name, phone:b.phone,
+        services:b.services||[], date:b.date,
+        startTime:b.start_time, endTime:b.end_time,
+        totalDurH:b.total_dur_h, totalPrice:b.total_price,
+        note:b.note||'', status:b.status
+      }));
+      // localStorage에도 동기화
+      found.forEach(sb=>{
+        const idx = bookings.findIndex(b=>b.id===sb.id);
+        if(idx>=0) bookings[idx]=sb;
+        else bookings.push(sb);
+      });
+      saveData();
+    }
+  } catch(e){}
+
+  // 2. Supabase에서 못 찾으면 localStorage 조회
+  if(!found.length){
+    loadData();
+    found = bookings
+      .filter(b=>b.name===name && b.phone===phone)
+      .sort((a,z)=>z.date.localeCompare(a.date));
+  }
+
+  if(!found.length){
+    el.innerHTML = `<div class="lookup-card"><div style="text-align:center;padding:18px;color:var(--sub);font-size:.82rem">일치하는 예약이 없습니다.</div></div>`;
+    return;
+  }
+  el.innerHTML = found.map(b=>buildLkCard(b)).join('');
 }
 function buildLkCard(b){
   const canAct=b.status==='pending'||b.status==='confirmed';
@@ -1322,10 +1371,27 @@ function navCal(w,d){
 })();
 
 // 초기화
-loadData();
-renderSvcList();
-renderBCal();
-renderReviews();
+async function init(){
+  loadData(); // localStorage 먼저 (빠른 렌더)
+  renderSvcList();
+  renderBCal();
+  renderReviews();
+  // Supabase에서 최신 설정 불러오기 (카톡 인앱브라우저 대응)
+  const loaded = await loadSettingsFromSupa();
+  if(loaded){
+    saveData();
+    renderSvcList();
+    renderBCal();
+  }
+  // 리뷰도 Supabase에서
+  const supaReviews = await loadReviewsFromSupa();
+  if(supaReviews && supaReviews.length){
+    reviews = supaReviews;
+    saveData();
+    renderReviews();
+  }
+}
+init();
 </script>
 </body>
 </html>

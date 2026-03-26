@@ -889,6 +889,19 @@ async function sbFetch(table, options={}){
 }
 
 // 모든 예약 로드
+// 설정 Supabase 저장 (시술메뉴, 영업시간, 휴무일)
+async function saveSettingsToSupa(){
+  const data = {
+    services, open:OPEN, close:CLOSE,
+    offDays:[...offDays], recurringDows:[...recurringDows], dayBlocks
+  };
+  await sbFetch('settings', {
+    method:'POST',
+    prefer:'resolution=merge-duplicates,return=minimal',
+    body: JSON.stringify({ key:'app_settings', value:data })
+  });
+}
+
 async function loadAllBookingsFromSupa(){
   const res = await sbFetch('bookings?order=date.desc,start_time.asc');
   if(!res || !res.length) return null;
@@ -981,7 +994,7 @@ function saveSettings(){
   if(!o||!c){msg.style.display='block';msg.style.background='var(--red-bg)';msg.style.color='var(--red)';msg.textContent='⚠️ 시간을 입력해주세요.';return;}
   if(o>=c){msg.style.display='block';msg.style.background='var(--red-bg)';msg.style.color='var(--red)';msg.textContent='⚠️ 마감 시간이 시작 시간보다 늦어야 해요.';return;}
   OPEN=o; CLOSE=c;
-  saveData();
+  saveData(); saveSettingsToSupa();
   msg.style.display='block';
   msg.style.background='var(--grn-bg)';
   msg.style.color='var(--grn)';
@@ -1073,6 +1086,8 @@ async function initAdmin(){
   populateBlockSelects();
   renderSvcEditor();
   renderMenuManage();
+  // 현재 설정 Supabase에 자동 저장 (카톡 인앱브라우저 대응)
+  saveSettingsToSupa();
 }
 
 function renderMenuManage(){
@@ -1115,7 +1130,7 @@ function saveHours(){
     msg.textContent='⚠️ 마감 시간이 시작 시간보다 늦어야 해요.';return;
   }
   OPEN=o; CLOSE=c;
-  saveData();
+  saveData(); saveSettingsToSupa();
   msg.style.display='block';
   msg.style.background='var(--grn-bg)';msg.style.color='var(--grn)';
   msg.textContent=`✅ 저장됐어요! 예약 가능 시간: ${OPEN} ~ ${CLOSE}`;
@@ -1444,9 +1459,9 @@ function saveSvc(){
   } else {
     services.push({id:svcNextId++,name:{ko:name,en:name},price,durH,desc:{ko:desc,en:desc},cat});
   }
-  closeModal('svcModal');saveData();renderSvcEditor();renderMenuManage();
+  closeModal('svcModal');saveData();saveSettingsToSupa();renderSvcEditor();renderMenuManage();
 }
-function deleteSvc(id){if(!confirm('삭제할까요?'))return;services=services.filter(s=>s.id!==id);saveData();renderSvcEditor();renderMenuManage();}
+function deleteSvc(id){if(!confirm('삭제할까요?'))return;services=services.filter(s=>s.id!==id);saveData();saveSettingsToSupa();renderSvcEditor();renderMenuManage();}
 
 // ── 리뷰 관리 ──
 function renderAdminReviews(){
