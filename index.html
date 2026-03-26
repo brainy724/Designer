@@ -810,31 +810,43 @@ async function loadReviewsFromSupa(){
 }
 
 function saveData(){
-  try{
-    localStorage.setItem('sera_services',JSON.stringify(services));
-    localStorage.setItem('sera_bookings',JSON.stringify(bookings));
-    localStorage.setItem('sera_reviews',JSON.stringify(reviews));
-    localStorage.setItem('sera_offDays',JSON.stringify([...offDays]));
-    localStorage.setItem('sera_dayBlocks',JSON.stringify(dayBlocks));
-    localStorage.setItem('sera_custNotes',JSON.stringify(custNotes));
-    localStorage.setItem('sera_custPhotos',JSON.stringify(custPhotos));
-    localStorage.setItem('sera_ids',JSON.stringify({svcNextId,bkNextId,rvNextId}));
-  }catch(e){}
+  const d={
+    services:JSON.stringify(services),
+    bookings:JSON.stringify(bookings),
+    reviews:JSON.stringify(reviews),
+    offDays:JSON.stringify([...offDays]),
+    dayBlocks:JSON.stringify(dayBlocks),
+    custNotes:JSON.stringify(custNotes),
+    custPhotos:JSON.stringify(custPhotos),
+    ids:JSON.stringify({svcNextId,bkNextId,rvNextId})
+  };
+  // localStorage와 sessionStorage 모두 저장 (카카오 인앱브라우저 대응)
+  ['localStorage','sessionStorage'].forEach(store=>{
+    try{
+      Object.entries(d).forEach(([k,v])=>window[store].setItem('sera_'+k,v));
+    }catch(e){}
+  });
 }
 function loadData(){
   try{
-    const sv=localStorage.getItem('sera_services');if(sv)services=JSON.parse(sv);
+    // 카카오 인앱브라우저: localStorage 없으면 sessionStorage 사용
+    function getItem(k){
+      try{const v=localStorage.getItem(k);if(v)return v;}catch(e){}
+      try{const v=sessionStorage.getItem(k);if(v)return v;}catch(e){}
+      return null;
+    }
+    const sv=getItem('sera_services');if(sv)services=JSON.parse(sv);
     // cat 없는 기존 시술 데이터 마이그레이션
     services=services.map(s=>({...s,cat:s.cat||''}));
-    const bv=localStorage.getItem('sera_bookings');if(bv)bookings=JSON.parse(bv);
-    const rv=localStorage.getItem('sera_reviews'); if(rv)reviews=JSON.parse(rv);
-    const od=localStorage.getItem('sera_offDays'); if(od)offDays=new Set(JSON.parse(od));
-    const rd=localStorage.getItem('sera_recurringDows'); if(rd)recurringDows=new Set(JSON.parse(rd));
-    const db=localStorage.getItem('sera_dayBlocks');if(db)dayBlocks=JSON.parse(db);
-    const cn=localStorage.getItem('sera_custNotes');if(cn)custNotes=JSON.parse(cn);
-    const cp=localStorage.getItem('sera_custPhotos');if(cp)custPhotos=JSON.parse(cp);
-    const ids=localStorage.getItem('sera_ids');if(ids){const p=JSON.parse(ids);svcNextId=p.svcNextId;bkNextId=p.bkNextId;rvNextId=p.rvNextId;}
-    const hr=localStorage.getItem('sera_hours');if(hr){const h=JSON.parse(hr);OPEN=h.open;CLOSE=h.close;}
+    const bv=getItem('sera_bookings');if(bv)bookings=JSON.parse(bv);
+    const rv=getItem('sera_reviews'); if(rv)reviews=JSON.parse(rv);
+    const od=getItem('sera_offDays'); if(od)offDays=new Set(JSON.parse(od));
+    const rd=getItem('sera_recurringDows'); if(rd)recurringDows=new Set(JSON.parse(rd));
+    const db=getItem('sera_dayBlocks');if(db)dayBlocks=JSON.parse(db);
+    const cn=getItem('sera_custNotes');if(cn)custNotes=JSON.parse(cn);
+    const cp=getItem('sera_custPhotos');if(cp)custPhotos=JSON.parse(cp);
+    const ids=getItem('sera_ids');if(ids){const p=JSON.parse(ids);svcNextId=p.svcNextId;bkNextId=p.bkNextId;rvNextId=p.rvNextId;}
+    const hr=getItem('sera_hours');if(hr){const h=JSON.parse(hr);OPEN=h.open;CLOSE=h.close;}
   }catch(e){}
 }
 

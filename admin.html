@@ -429,6 +429,7 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
         <div class="aside-sec">스케줄</div>
         <button class="asbtn" onclick="showPanel('offdays',this)"><span class="ico">○</span>휴무·차단</button>
         <button class="asbtn" onclick="showPanel('settings',this)"><span class="ico">⊙</span>설정</button>
+        <button class="asbtn" onclick="showPanel('revenue',this)"><span class="ico">₩</span>매출·비용</button>
         <div style="flex:1"></div>
         <button class="asbtn" onclick="doLogout()"><span class="ico">↩</span>로그아웃</button>
       </div>
@@ -519,7 +520,10 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
           <div class="pc" style="margin-bottom:14px">
             <div class="pc-title">
               ✦ 시술 메뉴
-              <button class="btn-outline" onclick="openAddSvcModal()">+ 시술 추가</button>
+              <div style="display:flex;gap:6px;align-items:center">
+                <button id="dragLockBtn" onclick="toggleDragLock()" style="padding:5px 10px;border:1.5px solid var(--ln);border-radius:5px;background:var(--bg2);font-size:.72rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif;color:var(--sub)">🔒 순서 고정</button>
+                <button class="btn-outline" onclick="openAddSvcModal()">+ 시술 추가</button>
+              </div>
             </div>
             <div id="svcEditorList2"></div>
           </div>
@@ -591,6 +595,69 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
         </div>
 
         <!-- 휴무·차단 -->
+        <!-- 매출·비용 패널 -->
+        <div class="apanel" id="panel-revenue">
+          <div class="dash-head"><div class="dash-title">매출 · 비용 분석</div></div>
+
+          <!-- KPI 요약 -->
+          <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+            <div class="kpi"><div class="kpi-n" id="rv-total-income" style="font-size:1.3rem">0</div><div class="kpi-l">이번 달 수익</div></div>
+            <div class="kpi"><div class="kpi-n" id="rv-total-cost" style="font-size:1.3rem;color:var(--red)">0</div><div class="kpi-l">이번 달 비용</div></div>
+            <div class="kpi"><div class="kpi-n" id="rv-total-profit" style="font-size:1.3rem;color:var(--grn)">0</div><div class="kpi-l">이번 달 순이익</div></div>
+          </div>
+
+          <!-- 월 선택 -->
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+            <div class="cal-arr" onclick="rvNavMonth(-1)">‹</div>
+            <div style="flex:1;text-align:center;font-family:'DM Serif Display',serif;font-size:1rem" id="rvMonthTitle"></div>
+            <div class="cal-arr" onclick="rvNavMonth(1)">›</div>
+          </div>
+
+          <!-- 그래프 탭 -->
+          <div style="display:flex;gap:6px;margin-bottom:10px">
+            <button class="cat-tab on" id="chart-tab-bar" onclick="switchChart('bar')">📊 월별 매출</button>
+            <button class="cat-tab" id="chart-tab-pie" onclick="switchChart('pie')">🥧 구성 비율</button>
+          </div>
+          <div class="pc" style="margin-bottom:14px;padding:16px">
+            <canvas id="rvChart" style="width:100%;max-height:220px"></canvas>
+          </div>
+
+          <!-- 비용 입력 -->
+          <div class="pc" style="margin-bottom:14px">
+            <div class="pc-title">+ 비용 추가</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+              <div class="field" style="margin:0"><label>날짜</label><input type="date" id="cost-date"></div>
+              <div class="field" style="margin:0"><label>금액 (원)</label><input type="number" id="cost-amount" placeholder="50000"></div>
+            </div>
+            <div class="field"><label>내용</label><input id="cost-desc" placeholder="재료비, 임대료 등"></div>
+            <div class="field"><label>비고</label><input id="cost-memo" placeholder="메모 (선택)"></div>
+            <button class="btn btn-dark" onclick="addCostEntry()" style="margin-top:4px">비용 추가</button>
+          </div>
+
+          <!-- 가계부 테이블 -->
+          <div class="pc">
+            <div class="pc-title" style="margin-bottom:10px">
+              📒 가계부
+              <span style="font-size:.72rem;color:var(--sub);font-family:'DM Sans',sans-serif" id="rvLedgerSummary"></span>
+            </div>
+            <div style="overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:.76rem" id="rvLedgerTable">
+                <thead>
+                  <tr style="border-bottom:2px solid var(--ln);text-align:left">
+                    <th style="padding:6px 8px;color:var(--sub);font-weight:500;white-space:nowrap">날짜</th>
+                    <th style="padding:6px 8px;color:var(--sub);font-weight:500">분류</th>
+                    <th style="padding:6px 8px;color:var(--sub);font-weight:500">내용</th>
+                    <th style="padding:6px 8px;color:var(--sub);font-weight:500;text-align:right">금액</th>
+                    <th style="padding:6px 8px;color:var(--sub);font-weight:500">비고</th>
+                    <th style="padding:6px 4px"></th>
+                  </tr>
+                </thead>
+                <tbody id="rvLedgerBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         <!-- 설정 -->
         <div class="apanel" id="panel-settings">
           <div class="dash-head"><div class="dash-title">설정</div></div>
@@ -628,9 +695,16 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
       <button class="m-tab" onclick="showPanel('customers',this);mTab(this)"><div class="m-tab-ico">◎</div>고객</button>
       <button class="m-tab" onclick="showPanel('menumanage',this);mTab(this)"><div class="m-tab-ico">✦</div>시술</button>
       <button class="m-tab" onclick="showPanel('reviews',this);mTab(this)"><div class="m-tab-ico">★</div>리뷰</button>
+      <button class="m-tab" onclick="showPanel('revenue',this);mTab(this)"><div class="m-tab-ico">₩</div>매출</button>
       <button class="m-tab" onclick="showPanel('settings',this);mTab(this)"><div class="m-tab-ico">⊙</div>설정</button>
     </div>
   </div>
+</div>
+
+<!-- 이미지 확대 뷰어 -->
+<div id="imgViewer" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;align-items:center;justify-content:center;cursor:pointer;" onclick="closeImgViewer()">
+  <img id="imgViewerImg" src="" style="max-width:95vw;max-height:90vh;object-fit:contain;border-radius:8px;">
+  <button onclick="closeImgViewer()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,.2);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:1.1rem;cursor:pointer;">✕</button>
 </div>
 
 <!-- 예약 상세 모달 -->
@@ -976,6 +1050,10 @@ function doLogout(){
 
 async function initAdmin(){
   loadData();
+  costEntries = JSON.parse(localStorage.getItem('sera_costs')||'[]');
+  // cost-date 기본값 오늘
+  const cd = document.getElementById('cost-date');
+  if(cd) cd.value = todayStr;
   renderDash(); // 먼저 localStorage로 빠르게 표시
   // Supabase에서 최신 데이터 로드
   const supaBookings = await loadAllBookingsFromSupa();
@@ -1008,12 +1086,12 @@ function renderMenuManage(){
   const el=document.getElementById('svcEditorList2');
   if(!el) return;
   el.innerHTML=services.length ? services.map(s=>`
-    <div class="svc-drag-item" data-id="${s.id}" draggable="true"
+    <div class="svc-drag-item" data-id="${s.id}" ${dragLocked?'':`draggable="true"
       ondragstart="onDragStart(event,${s.id})" ondragend="onDragEnd(event)"
       ondragover="onDragOver(event,${s.id})" ondrop="onDrop(event,${s.id})"
-      ontouchstart="onTouchStart(event,${s.id})" ontouchmove="onTouchMove(event)" ontouchend="onTouchEnd(event)"
+      ontouchstart="onTouchStart(event,${s.id})" ontouchmove="onTouchMove(event)" ontouchend="onTouchEnd(event)"`}
       style="display:flex;align-items:center;gap:8px;padding:12px 14px;border:1.5px solid var(--ln);border-radius:9px;margin-bottom:7px;background:var(--bg)">
-      <span class="drag-handle" title="드래그해서 순서 변경">⠿</span>
+      <span class="drag-handle" style="opacity:${dragLocked?'0.2':'1'};cursor:${dragLocked?'default':'grab'}" title="${dragLocked?'순서 변경하려면 🔓버튼 클릭':'드래그해서 순서 변경'}">⠿</span>
       <div style="flex:1">
         <div style="font-size:.88rem;font-weight:500">${s.name.ko||''}</div>
         <div style="font-size:.74rem;color:var(--sub);margin-top:3px">${[s.price?fmtMoney(s.price):'',fmtDur(s.durH),s.desc&&s.desc.ko?s.desc.ko:''].filter(Boolean).join(' · ')}</div>
@@ -1077,6 +1155,7 @@ function showPanel(id,btn){
   if(id==='services')renderSvcEditor();
   if(id==='menumanage'){renderMenuManage();renderOffCal();populateBlockSelects();}
   if(id==='reviews')renderAdminReviews();
+  if(id==='revenue'){rvYear=TODAY.getFullYear();rvMonth=TODAY.getMonth();renderRevenue();}
   if(id==='offdays')renderOffCal();
   if(id==='settings'){
     document.getElementById('set-open').value=OPEN;
@@ -1306,7 +1385,7 @@ function renderPhotoGrid(phone){
   const photos=custPhotos[phone]||[];
   const grid=document.getElementById('photoGrid-'+phone);
   if(!grid)return;
-  grid.innerHTML=photos.map((p,i)=>`<div class="photo-cell"><img src="${p}"><button class="ph-del" onclick="delPhoto('${phone}',${i})">✕</button></div>`).join('')+
+  grid.innerHTML=photos.map((p,i)=>`<div class="photo-cell"><img src="${p}" onclick="openImgViewer('${p}')" style="cursor:zoom-in"><button class="ph-del" onclick="event.stopPropagation();delPhoto('${phone}',${i})">✕</button></div>`).join('')+
     `<div class="photo-cell photo-add" onclick="document.getElementById('photoInput-${phone}').click()"><span class="ph-ico">+</span><span>사진 추가</span></div>`;
 }
 function saveCustNote(phone){custNotes[phone]=document.getElementById('custNoteArea').value;saveData();alert('저장되었습니다!');}
@@ -1500,6 +1579,19 @@ function renderDowButtons(){
 
 // ── 드래그 순서 변경 ──
 let dragSrcId = null;
+let dragLocked = true; // 기본: 순서 고정
+
+function toggleDragLock(){
+  dragLocked = !dragLocked;
+  const btn = document.getElementById('dragLockBtn');
+  if(btn){
+    btn.textContent = dragLocked ? '🔒 순서 고정' : '🔓 순서 변경 중';
+    btn.style.background = dragLocked ? 'var(--bg2)' : 'var(--pk-light)';
+    btn.style.color = dragLocked ? 'var(--sub)' : 'var(--pk-dark)';
+    btn.style.borderColor = dragLocked ? 'var(--ln)' : 'var(--pk)';
+  }
+  renderMenuManage();
+}
 function onDragStart(e, id){
   dragSrcId = parseInt(id);
   setTimeout(()=>e.target.classList.add('dragging'), 0);
@@ -1585,6 +1677,17 @@ function onTouchEnd(e){
 
 // ── 공통 ──
 function closeModal(id){document.getElementById(id).classList.remove('on');}
+
+function openImgViewer(src){
+  const v=document.getElementById('imgViewer');
+  const img=document.getElementById('imgViewerImg');
+  img.src=src; v.style.display='flex';
+  document.body.style.overflow='hidden';
+}
+function closeImgViewer(){
+  document.getElementById('imgViewer').style.display='none';
+  document.body.style.overflow='';
+}
 window.addEventListener('click',e=>{if(e.target.classList.contains('modal-bg'))e.target.classList.remove('on');});
 function chgStatus(id,s){bookings.find(b=>b.id===id).status=s;saveData();updateBookingStatusSupa(id,s);}
 function sBadge(s){return {pending:'sb-pending',confirmed:'sb-confirmed',done:'sb-done',cancelled:'sb-cancelled',cancel_req:'sb-req',change_req:'sb-chgreq'}[s]||'';}
@@ -1594,6 +1697,239 @@ function goToBooking(){
   const base = window.location.href.replace('admin.html','').replace(/\/$/, '');
   const url = base ? base + '/index.html' : 'index.html';
   window.open(url, '_blank');
+}
+
+// ── 매출·비용 분석 ──
+let rvYear = TODAY.getFullYear();
+let rvMonth = TODAY.getMonth();
+let costEntries = JSON.parse(localStorage.getItem('sera_costs')||'[]');
+let currentChart = null;
+let activeChartType = 'bar';
+
+function saveCosts(){ localStorage.setItem('sera_costs', JSON.stringify(costEntries)); }
+
+function rvNavMonth(d){
+  rvMonth += d;
+  if(rvMonth < 0){ rvYear--; rvMonth = 11; }
+  if(rvMonth > 11){ rvYear++; rvMonth = 0; }
+  renderRevenue();
+}
+
+function switchChart(type){
+  activeChartType = type;
+  document.getElementById('chart-tab-bar').classList.toggle('on', type==='bar');
+  document.getElementById('chart-tab-pie').classList.toggle('on', type==='pie');
+  renderRevenue();
+}
+
+function addCostEntry(){
+  const date = document.getElementById('cost-date').value;
+  const amount = parseInt(document.getElementById('cost-amount').value)||0;
+  const desc = document.getElementById('cost-desc').value.trim();
+  const memo = document.getElementById('cost-memo').value.trim();
+  if(!date||!amount){ alert('날짜와 금액을 입력해주세요.'); return; }
+  costEntries.push({ id: Date.now(), date, amount, desc: desc||'기타 비용', memo, type:'cost' });
+  costEntries.sort((a,b)=>a.date.localeCompare(b.date));
+  saveCosts();
+  document.getElementById('cost-date').value='';
+  document.getElementById('cost-amount').value='';
+  document.getElementById('cost-desc').value='';
+  document.getElementById('cost-memo').value='';
+  renderRevenue();
+}
+
+function deleteCostEntry(id){
+  if(!confirm('삭제할까요?')) return;
+  costEntries = costEntries.filter(e=>e.id!==id);
+  saveCosts();
+  renderRevenue();
+}
+
+function renderRevenue(){
+  const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  const titleEl = document.getElementById('rvMonthTitle');
+  if(titleEl) titleEl.textContent = `${rvYear}년 ${MONTHS[rvMonth]}`;
+
+  // 이번 달 수익 (완료된 예약 기준)
+  const monthStr = `${rvYear}-${pad(rvMonth+1)}`;
+  const doneThisMonth = bookings.filter(b=>b.date.startsWith(monthStr)&&b.status==='done');
+  const income = doneThisMonth.reduce((a,b)=>a+b.totalPrice,0);
+  const costsThisMonth = costEntries.filter(e=>e.date.startsWith(monthStr));
+  const cost = costsThisMonth.reduce((a,e)=>a+e.amount,0);
+  const profit = income - cost;
+
+  // KPI
+  const fmt = n => Number(n).toLocaleString()+'원';
+  const ki = document.getElementById('rv-total-income'); if(ki) ki.textContent=fmt(income);
+  const kc = document.getElementById('rv-total-cost'); if(kc) kc.textContent=fmt(cost);
+  const kp = document.getElementById('rv-total-profit');
+  if(kp){ kp.textContent=fmt(profit); kp.style.color=profit>=0?'var(--grn)':'var(--red)'; }
+
+  // 차트
+  drawRvChart(activeChartType, doneThisMonth, costsThisMonth);
+
+  // 가계부 렌더
+  renderLedger(monthStr);
+}
+
+function drawRvChart(type, incomeRows, costRows){
+  const canvas = document.getElementById('rvChart');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth * window.devicePixelRatio || 600;
+  canvas.height = 220 * window.devicePixelRatio || 440;
+  ctx.scale(window.devicePixelRatio||1, window.devicePixelRatio||1);
+  const W = canvas.offsetWidth || 300;
+  const H = 220;
+  ctx.clearRect(0,0,W,H);
+
+  if(type==='bar'){
+    // 최근 6개월 막대 그래프
+    const months = [];
+    for(let i=5;i>=0;i--){
+      let m=rvMonth-i, y=rvYear;
+      if(m<0){m+=12;y--;}
+      months.push({y,m,label:`${y}-${pad(m+1)}`});
+    }
+    const incomes = months.map(({label})=>
+      bookings.filter(b=>b.date.startsWith(label)&&b.status==='done').reduce((a,b)=>a+b.totalPrice,0)
+    );
+    const costs = months.map(({label})=>
+      costEntries.filter(e=>e.date.startsWith(label)).reduce((a,e)=>a+e.amount,0)
+    );
+    const maxVal = Math.max(...incomes, ...costs, 1);
+    const barW = (W-60) / (months.length*2+months.length-1) ;
+    const gap = barW/2;
+    const groupW = barW*2+gap;
+    const chartH = H-40;
+    const startX = 45;
+
+    // Y축
+    ctx.strokeStyle='#eee'; ctx.lineWidth=1;
+    [0,.25,.5,.75,1].forEach(r=>{
+      const y=H-20-chartH*r;
+      ctx.beginPath();ctx.moveTo(startX,y);ctx.lineTo(W-5,y);ctx.stroke();
+      ctx.fillStyle='#aaa';ctx.font=`${10*(window.devicePixelRatio||1)>1?10:10}px sans-serif`;
+      ctx.textAlign='right';
+      ctx.fillText(Math.round(maxVal*r/10000)+'만', startX-4, y+4);
+    });
+
+    months.forEach(({label},i)=>{
+      const x = startX + i*(groupW+gap*2);
+      // 수익 막대
+      const ih = (incomes[i]/maxVal)*chartH;
+      ctx.fillStyle='rgba(196,115,138,0.8)';
+      ctx.fillRect(x, H-20-ih, barW, ih);
+      // 비용 막대
+      const ch = (costs[i]/maxVal)*chartH;
+      ctx.fillStyle='rgba(173,53,53,0.6)';
+      ctx.fillRect(x+barW+gap, H-20-ch, barW, ch);
+      // 라벨
+      ctx.fillStyle='#888'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+      ctx.fillText(months[i].label.slice(5)+'월', x+barW, H-6);
+    });
+
+    // 범례
+    ctx.fillStyle='rgba(196,115,138,0.8)';ctx.fillRect(W-80,6,10,10);
+    ctx.fillStyle='#555';ctx.font='10px sans-serif';ctx.textAlign='left';ctx.fillText('수익',W-67,15);
+    ctx.fillStyle='rgba(173,53,53,0.6)';ctx.fillRect(W-40,6,10,10);
+    ctx.fillStyle='#555';ctx.fillText('비용',W-27,15);
+
+  } else {
+    // 파이 차트 - 시술별 매출 구성
+    const svcMap = {};
+    incomeRows.forEach(b=>b.services.forEach(s=>{
+      svcMap[s.name]=(svcMap[s.name]||0)+s.price;
+    }));
+    const entries = Object.entries(svcMap).sort((a,b)=>b[1]-a[1]);
+    const total = entries.reduce((a,[,v])=>a+v,0)||1;
+    const colors=['#C4738A','#9E4D65','#E8A0B0','#D4869A','#B05070','#EDB8C8','#8A3B55','#F0C8D8'];
+    const cx=W/2, cy=H/2-10, r=Math.min(cx,cy)-30;
+    let angle=-Math.PI/2;
+    entries.forEach(([name,val],i)=>{
+      const slice=(val/total)*Math.PI*2;
+      ctx.beginPath();ctx.moveTo(cx,cy);
+      ctx.arc(cx,cy,r,angle,angle+slice);ctx.closePath();
+      ctx.fillStyle=colors[i%colors.length];ctx.fill();
+      ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+      // 라벨
+      const mid=angle+slice/2;
+      if(slice>0.2){
+        const lx=cx+Math.cos(mid)*(r*0.65);
+        const ly=cy+Math.sin(mid)*(r*0.65);
+        ctx.fillStyle='#fff';ctx.font='bold 10px sans-serif';ctx.textAlign='center';
+        ctx.fillText(Math.round(val/total*100)+'%',lx,ly+4);
+      }
+      angle+=slice;
+    });
+    // 범례
+    entries.slice(0,6).forEach(([name,val],i)=>{
+      const lx=10, ly=H-5-(entries.length-i)*14;
+      ctx.fillStyle=colors[i%colors.length];ctx.fillRect(lx,ly-9,10,10);
+      ctx.fillStyle='#555';ctx.font='10px sans-serif';ctx.textAlign='left';
+      ctx.fillText(`${name} ${Math.round(val/total*100)}%`,lx+13,ly);
+    });
+  }
+}
+
+function renderLedger(monthStr){
+  const body = document.getElementById('rvLedgerBody');
+  const summary = document.getElementById('rvLedgerSummary');
+  if(!body) return;
+
+  // 수익 행 (완료 예약)
+  const incomeRows = bookings
+    .filter(b=>b.date.startsWith(monthStr)&&b.status==='done')
+    .map(b=>({
+      date:b.date, type:'income',
+      desc:`${b.name} / ${b.services.map(s=>s.name).join(', ')}`,
+      amount:b.totalPrice, memo:'', id:'bk-'+b.id
+    }));
+
+  // 비용 행
+  const costRows = costEntries
+    .filter(e=>e.date.startsWith(monthStr))
+    .map(e=>({...e, type:'cost'}));
+
+  // 합치고 날짜순 정렬
+  const all = [...incomeRows, ...costRows].sort((a,b)=>a.date.localeCompare(b.date));
+
+  const totalIncome = incomeRows.reduce((a,r)=>a+r.amount,0);
+  const totalCost = costRows.reduce((a,r)=>a+r.amount,0);
+  const totalProfit = totalIncome - totalCost;
+
+  if(summary){
+    summary.innerHTML = `수익 <b>${Number(totalIncome).toLocaleString()}원</b> · 비용 <b style="color:var(--red)">${Number(totalCost).toLocaleString()}원</b> · 순이익 <b style="color:${totalProfit>=0?'var(--grn)':'var(--red)'}">${Number(totalProfit).toLocaleString()}원</b>`;
+  }
+
+  if(!all.length){
+    body.innerHTML=`<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--sub2);font-size:.8rem">이번 달 내역이 없습니다</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = all.map(r=>{
+    const isIncome = r.type==='income';
+    const amtStr = isIncome
+      ? `<span style="color:var(--tx)">${Number(r.amount).toLocaleString()}원</span>`
+      : `<span style="color:var(--red)">(${Number(r.amount).toLocaleString()}원)</span>`;
+    const dateShort = r.date.slice(2); // yy-mm-dd
+    const delBtn = isIncome ? '' : `<button onclick="deleteCostEntry(${r.id})" style="background:none;border:none;color:var(--sub2);cursor:pointer;font-size:.75rem;padding:2px 4px">✕</button>`;
+    return `<tr style="border-bottom:1px solid var(--ln)">
+      <td style="padding:7px 8px;white-space:nowrap;font-size:.73rem">${dateShort}</td>
+      <td style="padding:7px 8px"><span style="padding:2px 7px;border-radius:20px;font-size:.65rem;background:${isIncome?'var(--grn-bg)':'var(--red-bg)'};color:${isIncome?'var(--grn)':'var(--red)'}">${isIncome?'수익':'비용'}</span></td>
+      <td style="padding:7px 8px;font-size:.75rem;max-width:120px;word-break:break-all">${r.desc}</td>
+      <td style="padding:7px 8px;text-align:right;font-size:.78rem;font-weight:500;white-space:nowrap">${amtStr}</td>
+      <td style="padding:7px 8px;font-size:.72rem;color:var(--sub)">${r.memo||''}</td>
+      <td style="padding:7px 4px">${delBtn}</td>
+    </tr>`;
+  }).join('');
+
+  // 합계 행
+  body.innerHTML += `<tr style="border-top:2px solid var(--ln);background:var(--bg2)">
+    <td colspan="3" style="padding:8px 8px;font-size:.78rem;font-weight:600">합계</td>
+    <td style="padding:8px 8px;text-align:right;font-size:.82rem;font-weight:700;color:${totalProfit>=0?'var(--grn)':'var(--red)'}">${Number(totalProfit).toLocaleString()}원</td>
+    <td colspan="2"></td>
+  </tr>`;
 }
 
 // ── 초기화 ──
