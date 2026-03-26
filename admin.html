@@ -795,51 +795,77 @@ function setLang(l){
 const SUPA_URL = 'https://oyooygykehhxfoffixej.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95b295Z3lrZWhoeGZvZmZpeGVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NzE2OTMsImV4cCI6MjA5MDA0NzY5M30.gQLYJAiwbLAIZfbdEGsIc22y1b3DOHim1xzMr_urmVw';
 
-async function sbFetch(path, options={}){
-  try{
-    const res = await fetch(SUPA_URL+'/rest/v1/'+path, {
-      headers:{
-        'apikey':SUPA_KEY,
-        'Authorization':'Bearer '+SUPA_KEY,
-        'Content-Type':'application/json',
-        'Prefer':options.prefer||'return=representation',
-        ...options.headers
+async function sbFetch(table, options={}){
+  const url = SUPA_URL + '/rest/v1/' + table;
+  try {
+    const res = await fetch(url, {
+      method: options.method || 'GET',
+      headers: {
+        'apikey': SUPA_KEY,
+        'Authorization': 'Bearer ' + SUPA_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': options.prefer || 'return=representation'
       },
-      ...options
+      body: options.body || undefined
     });
+    if(!res.ok) return null;
     const text = await res.text();
-    return text ? JSON.parse(text) : null;
-  }catch(e){return null;}
+    return text ? JSON.parse(text) : [];
+  } catch(e) { return null; }
 }
 
-// 모든 예약 Supabase에서 로드
-async function loadBookingsFromSupa(){
-  const data = await sbFetch('bookings?order=date.desc');
-  if(data&&data.length){
-    bookings = data.map(b=>({
-      id:b.id, name:b.name, phone:b.phone,
-      services:b.services||[], date:b.date,
-      startTime:b.start_time, endTime:b.end_time,
-      totalDurH:b.total_dur_h, totalPrice:b.total_price,
-      note:b.note||'', status:b.status
-    }));
-  }
+// 모든 예약 로드
+async function loadAllBookingsFromSupa(){
+  const res = await sbFetch('bookings?order=date.desc,start_time.asc');
+  if(!res || !res.length) return null;
+  return res.map(b => ({
+    id: b.id, name: b.name, phone: b.phone,
+    services: b.services || [], date: b.date,
+    startTime: b.start_time, endTime: b.end_time,
+    totalDurH: b.total_dur_h, totalPrice: b.total_price,
+    note: b.note || '', status: b.status
+  }));
 }
 
-// 예약 상태 Supabase에 업데이트
+// 예약 상태 업데이트
 async function updateBookingStatusSupa(id, status){
   await sbFetch(`bookings?id=eq.${id}`, {
-    method:'PATCH', prefer:'return=minimal',
+    method: 'PATCH', prefer: 'return=minimal',
     body: JSON.stringify({status})
   });
 }
 
-// 리뷰 댓글 Supabase에 업데이트
+// 예약 시간 업데이트
+async function updateBookingTimeSupa(id, startTime, endTime){
+  await sbFetch(`bookings?id=eq.${id}`, {
+    method: 'PATCH', prefer: 'return=minimal',
+    body: JSON.stringify({start_time: startTime, end_time: endTime})
+  });
+}
+
+// 리뷰 전체 로드
+async function loadAllReviewsFromSupa(){
+  const res = await sbFetch('reviews?order=created_at.desc');
+  if(!res || !res.length) return null;
+  return res.map(r => ({
+    id: r.id, bookingId: r.booking_id, stars: r.stars,
+    text: r.text, visitNum: r.visit_num,
+    svcNames: r.svc_names, reply: r.reply || '',
+    date: r.date, photos: []
+  }));
+}
+
+// 리뷰 댓글 업데이트
 async function updateReplySupa(id, reply){
   await sbFetch(`reviews?id=eq.${id}`, {
-    method:'PATCH', prefer:'return=minimal',
+    method: 'PATCH', prefer: 'return=minimal',
     body: JSON.stringify({reply})
   });
+}
+
+// 리뷰 삭제
+async function deleteReviewSupa(id){
+  await sbFetch(`reviews?id=eq.${id}`, { method: 'DELETE', prefer: 'return=minimal' });
 }
 
 // ── 데이터 저장/로드 ──
@@ -948,15 +974,27 @@ function doLogout(){
   document.getElementById('pwInput').value='';
 }
 
-function initAdmin(){
+async function initAdmin(){
   loadData();
-  loadBookingsFromSupa().then(()=>renderDash()); // Supabase에서 최신 예약 로드
+  renderDash(); // 먼저 localStorage로 빠르게 표시
+  // Supabase에서 최신 데이터 로드
+  const supaBookings = await loadAllBookingsFromSupa();
+  if(supaBookings && supaBookings.length){
+    bookings = supaBookings;
+    saveData();
+  }
+  const supaReviews = await loadAllReviewsFromSupa();
+  if(supaReviews && supaReviews.length){
+    reviews = supaReviews;
+    saveData();
+  }
+  renderDash();
+  renderAdminReviews();
+  renderCustomers();
   initNbForm();
   populateBlockSelects();
   renderSvcEditor();
   renderMenuManage();
-  renderAdminReviews();
-  renderCustomers();
 }
 
 function renderMenuManage(){
@@ -1153,6 +1191,8 @@ function adjustTime(id){
   const ne=document.getElementById('ta-end-'+id).value;
   if(!ns||!ne||ns>=ne){alert('올바른 시간을 입력해주세요.');return;}
   b.startTime=ns;b.endTime=ne;
+  saveData();
+  updateBookingTimeSupa(id,ns,ne);
   alert('시간이 조정되었습니다.');closeModal('bkModal');renderDash();
 }
 
@@ -1358,8 +1398,8 @@ function renderAdminReviews(){
     :'<div class="empty-msg">리뷰가 없습니다</div>';
 }
 function toggleAdminReply(id){const el=document.getElementById('replyForm-'+id);el.style.display=el.style.display==='none'?'block':'none';}
-function saveReply(id){const rv=reviews.find(r=>r.id===id);rv.reply=document.getElementById('replyText-'+id).value.trim();saveData();renderAdminReviews();}
-function deleteReview(id){if(!confirm('리뷰를 삭제할까요?'))return;reviews=reviews.filter(r=>r.id!==id);saveData();renderAdminReviews();}
+function saveReply(id){const rv=reviews.find(r=>r.id===id);rv.reply=document.getElementById('replyText-'+id).value.trim();saveData();updateReplySupa(id,rv.reply);renderAdminReviews();}
+function deleteReview(id){if(!confirm('리뷰를 삭제할까요?'))return;reviews=reviews.filter(r=>r.id!==id);saveData();deleteReviewSupa(id);renderAdminReviews();}
 
 // ── 휴무·차단 ──
 function populateBlockSelects(){
@@ -1558,7 +1598,6 @@ function goToBooking(){
 
 // ── 초기화 ──
 loadData();
-initAdmin();
 </script>
 </body>
 </html>

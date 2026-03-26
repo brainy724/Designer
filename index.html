@@ -714,85 +714,91 @@ function setLang(l){
 const SUPA_URL = 'https://oyooygykehhxfoffixej.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95b295Z3lrZWhoeGZvZmZpeGVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NzE2OTMsImV4cCI6MjA5MDA0NzY5M30.gQLYJAiwbLAIZfbdEGsIc22y1b3DOHim1xzMr_urmVw';
 
-async function sbFetch(path, options={}){
-  const res = await fetch(SUPA_URL+'/rest/v1/'+path, {
-    headers: {
-      'apikey': SUPA_KEY,
-      'Authorization': 'Bearer '+SUPA_KEY,
-      'Content-Type': 'application/json',
-      'Prefer': options.prefer||'',
-      ...options.headers
-    },
-    ...options
-  });
-  if(!res.ok) return null;
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
+async function sbFetch(table, options={}){
+  const url = SUPA_URL + '/rest/v1/' + table;
+  try {
+    const res = await fetch(url, {
+      method: options.method || 'GET',
+      headers: {
+        'apikey': SUPA_KEY,
+        'Authorization': 'Bearer ' + SUPA_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': options.prefer || 'return=representation'
+      },
+      body: options.body || undefined
+    });
+    if(!res.ok) return null;
+    const text = await res.text();
+    return text ? JSON.parse(text) : [];
+  } catch(e) { return null; }
 }
 
-// Supabase에 예약 저장
+// 예약 저장
 async function saveBookingToSupa(b){
-  try{
-    await sbFetch('bookings', {
-      method:'POST',
-      prefer:'return=minimal',
-      body: JSON.stringify({
-        name:b.name, phone:b.phone,
-        services:b.services, date:b.date,
-        start_time:b.startTime, end_time:b.endTime,
-        total_dur_h:b.totalDurH, total_price:b.totalPrice,
-        note:b.note, status:b.status
-      })
-    });
-  }catch(e){}
+  const data = {
+    name: b.name, phone: b.phone,
+    services: b.services, date: b.date,
+    start_time: b.startTime, end_time: b.endTime,
+    total_dur_h: b.totalDurH, total_price: b.totalPrice,
+    note: b.note || '', status: b.status
+  };
+  const res = await sbFetch('bookings', { method:'POST', prefer:'return=minimal', body: JSON.stringify(data) });
+  return res;
 }
 
-// Supabase에서 예약 조회
+// 이름+연락처로 예약 조회
 async function loadBookingsFromSupa(name, phone){
-  try{
-    const data = await sbFetch(`bookings?name=eq.${encodeURIComponent(name)}&phone=eq.${encodeURIComponent(phone)}&order=date.desc`);
-    if(data&&data.length){
-      return data.map(b=>({
-        id:b.id, name:b.name, phone:b.phone,
-        services:b.services||[], date:b.date,
-        startTime:b.start_time, endTime:b.end_time,
-        totalDurH:b.total_dur_h, totalPrice:b.total_price,
-        note:b.note||'', status:b.status
-      }));
-    }
-  }catch(e){}
-  return null;
+  const res = await sbFetch(`bookings?name=eq.${encodeURIComponent(name)}&phone=eq.${encodeURIComponent(phone)}&order=date.desc`);
+  if(!res || !res.length) return null;
+  return res.map(b => ({
+    id: b.id, name: b.name, phone: b.phone,
+    services: b.services || [], date: b.date,
+    startTime: b.start_time, endTime: b.end_time,
+    totalDurH: b.total_dur_h, totalPrice: b.total_price,
+    note: b.note || '', status: b.status
+  }));
 }
 
-// Supabase에 리뷰 저장
+// 모든 예약 조회 (관리자용)
+async function loadAllBookingsFromSupa(){
+  const res = await sbFetch('bookings?order=date.desc');
+  if(!res || !res.length) return null;
+  return res.map(b => ({
+    id: b.id, name: b.name, phone: b.phone,
+    services: b.services || [], date: b.date,
+    startTime: b.start_time, endTime: b.end_time,
+    totalDurH: b.total_dur_h, totalPrice: b.total_price,
+    note: b.note || '', status: b.status
+  }));
+}
+
+// 예약 상태 업데이트
+async function updateBookingStatusSupa(id, status){
+  await sbFetch(`bookings?id=eq.${id}`, { method:'PATCH', prefer:'return=minimal', body: JSON.stringify({status}) });
+}
+
+// 리뷰 저장
 async function saveReviewToSupa(rv){
-  try{
-    await sbFetch('reviews', {
-      method:'POST',
-      prefer:'return=minimal',
-      body: JSON.stringify({
-        booking_id:rv.bookingId, stars:rv.stars,
-        text:rv.text, visit_num:rv.visitNum,
-        svc_names:rv.svcNames, reply:rv.reply||'', date:rv.date
-      })
-    });
-  }catch(e){}
+  await sbFetch('reviews', {
+    method:'POST', prefer:'return=minimal',
+    body: JSON.stringify({
+      booking_id: rv.bookingId, stars: rv.stars,
+      text: rv.text, visit_num: rv.visitNum,
+      svc_names: rv.svcNames, reply: rv.reply || '', date: rv.date
+    })
+  });
 }
 
-// Supabase에서 모든 리뷰 불러오기
+// 리뷰 전체 조회
 async function loadReviewsFromSupa(){
-  try{
-    const data = await sbFetch('reviews?order=created_at.desc');
-    if(data&&data.length){
-      reviews = data.map(r=>({
-        id:r.id, bookingId:r.booking_id, stars:r.stars,
-        text:r.text, visitNum:r.visit_num,
-        svcNames:r.svc_names, reply:r.reply||'', date:r.date,
-        photos:[]
-      }));
-      renderReviews();
-    }
-  }catch(e){}
+  const res = await sbFetch('reviews?order=created_at.desc');
+  if(!res || !res.length) return null;
+  return res.map(r => ({
+    id: r.id, bookingId: r.booking_id, stars: r.stars,
+    text: r.text, visitNum: r.visit_num,
+    svcNames: r.svc_names, reply: r.reply || '',
+    date: r.date, photos: []
+  }));
 }
 
 function saveData(){
@@ -1207,7 +1213,7 @@ function submitReview(){
   const photos=[...rvPhotos];
   const existing=reviews.find(r=>r.bookingId===bkId);
   if(existing){existing.stars=rvStars;existing.text=text;existing.photos=photos;existing.date=df(TODAY);saveData();}
-  else{reviews.push({id:rvNextId++,bookingId:bkId,stars:rvStars,text,photos,date:df(TODAY),visitNum,svcNames,reply:''});saveData();}
+  else{const rv={id:rvNextId++,bookingId:bkId,stars:rvStars,text,photos,date:df(TODAY),visitNum,svcNames,reply:''};reviews.push(rv);saveData();saveReviewToSupa(rv);}
   alert(lang==='en'?'Review submitted! Thank you 😊':'리뷰가 등록되었습니다! 감사합니다 😊');
   document.getElementById('rvBookingSelect').style.display='none';
   document.getElementById('rvName').value='';document.getElementById('rvPhone').value='';
