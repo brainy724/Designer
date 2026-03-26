@@ -1200,10 +1200,22 @@ function renderDash(){
     </div>`).join('');
   renderDCal();renderDashList(adminSelDate);
 }
-function approveReq(id){
+async function approveReq(id){
   const b=bookings.find(x=>x.id===id);
-  if(b.status==='cancel_req'){b.status='cancelled';}
-  else{b.date=b.reqDate;b.startTime=b.reqTime;b.endTime=addTimeH(b.reqTime,b.totalDurH);b.status='confirmed';delete b.reqDate;delete b.reqTime;delete b.reqReason;saveData();}
+  if(b.status==='cancel_req'){
+    bookings=bookings.filter(x=>x.id!==id);
+    saveData();
+    try{
+      await fetch(SUPA_URL+'/rest/v1/bookings?id=eq.'+id,{
+        method:'DELETE',
+        headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+      });
+    }catch(e){}
+  } else {
+    b.date=b.reqDate;b.startTime=b.reqTime;b.endTime=addTimeH(b.reqTime,b.totalDurH);
+    b.status='confirmed';delete b.reqDate;delete b.reqTime;delete b.reqReason;
+    saveData();updateBookingStatusSupa(id,'confirmed').catch(()=>{});
+  }
   renderDash();
 }
 function rejectReq(id){bookings.find(x=>x.id===id).status='confirmed';renderDash();}
@@ -1249,9 +1261,19 @@ function openBkModal(id){
   let acts='';
   if(b.status==='pending')acts+=`<button class="btn btn-dark" onclick="chgStatus(${id},'confirmed');closeModal('bkModal');renderDash()" style="margin-top:0">✓ 예약 확정</button>`;
   if(b.status==='confirmed')acts+=`<button class="btn" style="background:var(--grn-bg);color:var(--grn);border:1.5px solid var(--grn-bd);margin-top:0" onclick="chgStatus(${id},'done');closeModal('bkModal');renderDash()">완료 처리</button>`;
+  if(b.status==='done')acts+=`<button class="btn" style="background:var(--bg2);color:var(--sub);border:1.5px solid var(--ln);margin-top:0;font-size:.78rem" onclick="chgStatus(${id},'confirmed');closeModal('bkModal');renderDash()">↩ 완료 취소</button>`;
   if(b.status==='cancel_req')acts+=`<div style="display:flex;gap:6px"><button class="btn-sm btn-ok" onclick="approveReq(${id});closeModal('bkModal')">취소 승인</button><button class="btn-sm btn-ng" onclick="rejectReq(${id});closeModal('bkModal')">거절</button></div>`;
   if(b.status==='change_req')acts+=`<div style="display:flex;gap:6px"><button class="btn-sm btn-ok" onclick="approveReq(${id});closeModal('bkModal')">변경 승인</button><button class="btn-sm btn-ng" onclick="rejectReq(${id});closeModal('bkModal')">거절</button></div>`;
   if(b.status!=='cancelled'&&b.status!=='done')acts+=`<button class="btn btn-warn" onclick="chgStatus(${id},'cancelled');closeModal('bkModal');renderDash()" style="margin-top:4px">예약 취소</button>`;
+  // 할인가 적용 (항상 표시)
+  acts+=`<div class="msec" style="margin-top:8px">할인가 적용</div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input type="number" id="discountPrice-${id}" placeholder="할인 금액 입력" value="${b.totalPrice}"
+        style="flex:1;padding:8px 10px;border:1.5px solid var(--ln);border-radius:7px;font-size:.82rem;font-family:'DM Sans','Noto Sans KR',sans-serif">
+      <span style="font-size:.78rem;color:var(--sub)">원</span>
+      <button class="btn-outline" onclick="applyDiscount(${id})" style="white-space:nowrap">적용</button>
+    </div>
+    <div style="font-size:.72rem;color:var(--sub);margin-top:4px">원래 금액: ${fmtMoney(b.totalPrice)}</div>`;
 
   // time adjust
   const taHTML=`
@@ -1716,6 +1738,37 @@ function closeImgViewer(){
 }
 window.addEventListener('click',e=>{if(e.target.classList.contains('modal-bg'))e.target.classList.remove('on');});
 function chgStatus(id,s){bookings.find(b=>b.id===id).status=s;saveData();updateBookingStatusSupa(id,s).catch(()=>{});}
+
+// 할인가 적용
+async function applyDiscount(id){
+  const inp = document.getElementById('discountPrice-'+id);
+  if(!inp) return;
+  const newPrice = parseInt(inp.value);
+  if(isNaN(newPrice)||newPrice<0){ alert('올바른 금액을 입력해주세요.'); return; }
+  const b = bookings.find(x=>x.id===id);
+  const oldPrice = b.totalPrice;
+  b.totalPrice = newPrice;
+  saveData();
+  try{
+    await fetch(SUPA_URL+'/rest/v1/bookings?id=eq.'+id,{
+      method:'PATCH',
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({total_price: newPrice})
+    });
+  }catch(e){}
+  alert(`할인가 적용 완료!\n${fmtMoney(oldPrice)} → ${fmtMoney(newPrice)}`);
+  closeModal('bkModal');
+  renderDash();
+}
+
+// 매출 삭제 (예약 완료 → 확정으로 되돌리기)
+function deleteIncomeEntry(rowId){
+  if(!confirm('이 매출을 삭제할까요?\n예약이 "완료" → "확정" 상태로 변경됩니다.')) return;
+  const bkId = parseInt(rowId.replace('bk-',''));
+  const b = bookings.find(x=>x.id===bkId);
+  if(b){ b.status='confirmed'; saveData(); updateBookingStatusSupa(bkId,'confirmed').catch(()=>{}); }
+  renderRevenue();
+}
 function sBadge(s){return {pending:'sb-pending',confirmed:'sb-confirmed',done:'sb-done',cancelled:'sb-cancelled',cancel_req:'sb-req',change_req:'sb-chgreq'}[s]||'';}
 function sLabel(s){return {pending:'대기',confirmed:'확정',done:'완료',cancelled:'취소',cancel_req:'취소요청',change_req:'변경요청'}[s]||s;}
 
@@ -1909,7 +1962,12 @@ function renderLedger(monthStr){
     .map(b=>({
       date:b.date, type:'income',
       desc:`${b.name} / ${b.services.map(s=>s.name).join(', ')}`,
-      amount:b.totalPrice, memo:'', id:'bk-'+b.id
+      amount:b.totalPrice, memo:'', id:'bk-'+b.id,
+      services:b.services,
+      // 할인 여부 메모
+      discountMemo: b.services.reduce((a,s)=>a+(s.price||0),0) > b.totalPrice
+        ? `정가 ${Number(b.services.reduce((a,s)=>a+(s.price||0),0)).toLocaleString()}원 → 할인 ${Number(b.services.reduce((a,s)=>a+(s.price||0),0)-b.totalPrice).toLocaleString()}원 적용`
+        : ''
     }));
 
   // 비용 행
@@ -1920,12 +1978,22 @@ function renderLedger(monthStr){
   // 합치고 날짜순 정렬
   const all = [...incomeRows, ...costRows].sort((a,b)=>a.date.localeCompare(b.date));
 
+  // 총 정가 합산
+  const totalOriginal = incomeRows.reduce((a,r)=>a+(r.services?r.services.reduce((x,s)=>x+(s.price||0),0):r.amount),0);
   const totalIncome = incomeRows.reduce((a,r)=>a+r.amount,0);
+  const totalDiscount = totalOriginal - totalIncome;
   const totalCost = costRows.reduce((a,r)=>a+r.amount,0);
   const totalProfit = totalIncome - totalCost;
 
   if(summary){
-    summary.innerHTML = `수익 <b>${Number(totalIncome).toLocaleString()}원</b> · 비용 <b style="color:var(--red)">${Number(totalCost).toLocaleString()}원</b> · 순이익 <b style="color:${totalProfit>=0?'var(--grn)':'var(--red)'}">${Number(totalProfit).toLocaleString()}원</b>`;
+    summary.innerHTML = `
+      <span style="display:inline-flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.74rem">
+        <span>매출 <b>${Number(totalOriginal).toLocaleString()}원</b></span>
+        ${totalDiscount>0?`<span style="color:var(--red)">할인 <b>-${Number(totalDiscount).toLocaleString()}원</b></span>`:''}
+        <span>순매출 <b style="color:var(--pk-dark)">${Number(totalIncome).toLocaleString()}원</b></span>
+        <span style="color:var(--red)">비용 <b>-${Number(totalCost).toLocaleString()}원</b></span>
+        <span style="color:${totalProfit>=0?'var(--grn)':'var(--red)'}">순이익 <b>${Number(totalProfit).toLocaleString()}원</b></span>
+      </span>`;
   }
 
   if(!all.length){
@@ -1939,20 +2007,25 @@ function renderLedger(monthStr){
       ? `<span style="color:var(--tx)">${Number(r.amount).toLocaleString()}원</span>`
       : `<span style="color:var(--red)">(${Number(r.amount).toLocaleString()}원)</span>`;
     const dateShort = r.date.slice(2); // yy-mm-dd
-    const delBtn = isIncome ? '' : `<button onclick="deleteCostEntry(${r.id})" style="background:none;border:none;color:var(--sub2);cursor:pointer;font-size:.75rem;padding:2px 4px">✕</button>`;
+    const delBtn = isIncome ? `<button onclick="deleteIncomeEntry('${r.id}')" style="background:none;border:none;color:var(--sub2);cursor:pointer;font-size:.75rem;padding:2px 4px">✕</button>` : `<button onclick="deleteCostEntry(${r.id})" style="background:none;border:none;color:var(--sub2);cursor:pointer;font-size:.75rem;padding:2px 4px">✕</button>`;
     return `<tr style="border-bottom:1px solid var(--ln)">
       <td style="padding:7px 8px;white-space:nowrap;font-size:.73rem">${dateShort}</td>
       <td style="padding:7px 8px"><span style="padding:2px 7px;border-radius:20px;font-size:.65rem;background:${isIncome?'var(--grn-bg)':'var(--red-bg)'};color:${isIncome?'var(--grn)':'var(--red)'}">${isIncome?'수익':'비용'}</span></td>
       <td style="padding:7px 8px;font-size:.75rem;max-width:120px;word-break:break-all">${r.desc}</td>
       <td style="padding:7px 8px;text-align:right;font-size:.78rem;font-weight:500;white-space:nowrap">${amtStr}</td>
-      <td style="padding:7px 8px;font-size:.72rem;color:var(--sub)">${r.memo||''}</td>
+      <td style="padding:7px 8px;font-size:.72rem;color:var(--sub)">${r.discountMemo||r.memo||''}</td>
       <td style="padding:7px 4px">${delBtn}</td>
     </tr>`;
   }).join('');
 
   // 합계 행
   body.innerHTML += `<tr style="border-top:2px solid var(--ln);background:var(--bg2)">
-    <td colspan="3" style="padding:8px 8px;font-size:.78rem;font-weight:600">합계</td>
+    <td colspan="2" style="padding:8px 8px;font-size:.75rem;font-weight:600">합계</td>
+    <td style="padding:8px 8px;font-size:.72rem;color:var(--sub)">
+      매출 ${Number(totalOriginal).toLocaleString()}원
+      ${totalDiscount>0?`<br>할인 -${Number(totalDiscount).toLocaleString()}원`:''}
+      <br>순매출 ${Number(totalIncome).toLocaleString()}원
+    </td>
     <td style="padding:8px 8px;text-align:right;font-size:.82rem;font-weight:700;color:${totalProfit>=0?'var(--grn)':'var(--red)'}">${Number(totalProfit).toLocaleString()}원</td>
     <td colspan="2"></td>
   </tr>`;
