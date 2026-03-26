@@ -778,6 +778,14 @@ async function updateBookingStatusSupa(id, status){
 }
 
 // 리뷰 저장
+// 예약 상태 업데이트
+async function updateBookingStatusSupa(id, status){
+  await sbFetch(`bookings?id=eq.${id}`, {
+    method:'PATCH', prefer:'return=minimal',
+    body: JSON.stringify({status})
+  });
+}
+
 async function saveReviewToSupa(rv){
   await sbFetch('reviews', {
     method:'POST', prefer:'return=minimal',
@@ -1077,14 +1085,20 @@ async function doLookup(){
   if(!name||!phone){alert(lang==='en'?'Please enter name and phone':'이름과 연락처를 입력해주세요.');return;}
   const el=document.getElementById('lkResults');
   el.innerHTML='<div style="text-align:center;padding:18px;color:var(--sub);font-size:.8rem">조회 중...</div>';
-  // localStorage에서 조회
   loadData();
   let found = bookings.filter(b=>b.name===name&&b.phone===phone).sort((a,z)=>z.date.localeCompare(a.date));
-  // Supabase에서도 조회 (추가 데이터)
-  try{
-    const supaFound = await loadBookingsFromSupa(name, phone);
-    if(supaFound&&supaFound.length) found=supaFound;
-  }catch(e){}
+  // Supabase에서 최신 데이터 조회 후 localStorage에도 동기화
+  const supaFound = await loadBookingsFromSupa(name, phone);
+  if(supaFound && supaFound.length){
+    found = supaFound;
+    // Supabase 데이터를 localStorage에 병합
+    supaFound.forEach(sb=>{
+      const idx = bookings.findIndex(b=>b.id===sb.id);
+      if(idx>=0) bookings[idx]=sb; // 업데이트
+      else bookings.push(sb); // 새로 추가
+    });
+    saveData();
+  }
   if(!found||!found.length){el.innerHTML=`<div class="lookup-card"><div style="text-align:center;padding:18px;color:var(--sub);font-size:.82rem">${lang==='en'?'No bookings found.':'일치하는 예약이 없습니다.'}</div></div>`;return;}
   el.innerHTML=found.map(b=>buildLkCard(b)).join('');
 }
@@ -1122,12 +1136,16 @@ function submitChgReq(id){
   b.status='change_req';b.reqDate=date;
   b.reqTime=document.getElementById('chgtime-'+id).value;
   b.reqReason=document.getElementById('chgreason-'+id).value;
+  saveData();
+  updateBookingStatusSupa(id,'change_req');
   document.getElementById('lkcard-'+id).outerHTML=buildLkCard(b);
   alert(lang==='en'?'Change request submitted!':'변경 요청이 접수되었습니다.');
 }
 function submitCancelReq(id){
   if(!confirm(lang==='en'?'Request cancellation?':'취소를 요청할까요?'))return;
   const b=bookings.find(x=>x.id===id);b.status='cancel_req';
+  saveData();
+  updateBookingStatusSupa(id,'cancel_req');
   document.getElementById('lkcard-'+id).outerHTML=buildLkCard(b);
 }
 
