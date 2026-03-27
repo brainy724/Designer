@@ -77,11 +77,11 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
 .svc-card.sel .svc-chk-box{background:var(--pk);border-color:var(--pk);color:var(--w);}
 
 /* selected services summary bar */
-.sel-summary{background:var(--w);color:var(--tx);border:1.5px solid var(--ln);border-radius:var(--r);padding:11px 14px;margin-bottom:14px;font-size:.78rem;display:none;}
+.sel-summary{background:var(--pk-light);color:var(--pk-dark);border:1.5px solid var(--pk-mid);border-radius:var(--r);padding:11px 14px;margin-bottom:14px;font-size:.78rem;display:none;}
 .sel-summary.show{display:block;}
 .sel-sum-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
 .sel-sum-row:last-child{margin-bottom:0;}
-.sel-sum-label{color:var(--sub);font-size:.66rem;}
+.sel-sum-label{color:var(--pk-dark);opacity:.7;font-size:.66rem;}
 .sel-sum-val{font-weight:500;}
 .sel-sum-total{font-family:'DM Serif Display',serif;font-size:1.1rem;}
 .sel-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;}
@@ -1435,16 +1435,22 @@ function renderDashList(ds){
   const listEl=document.getElementById('dashBkList');
 
   if(isCurrentMonth){
-    // 이번 달 → 선택된 날짜 기준
     labelEl.textContent=ds===todayStr?'오늘 예약':fmtKo(ds);
     const list=bookings.filter(b=>b.date===ds).sort((a,z)=>a.startTime.localeCompare(z.startTime));
-    countEl.textContent=list.length?`${list.length}건`:'';
+    const confirmed=list.filter(b=>b.status==='done'||b.status==='confirmed');
+    const rev=confirmed.reduce((a,b)=>a+b.totalPrice,0);
+    countEl.innerHTML=confirmed.length
+      ? `<span style="font-weight:700;color:var(--tx)">${confirmed.length}건</span>${rev>0?` <span style="font-family:'DM Serif Display',serif;font-weight:700;color:var(--pk);font-size:.85rem">${fmtMoney(rev)}</span>`:''}`
+      : '';
     listEl.innerHTML=list.length?list.map(b=>bkItemHTML(b)).join(''):'<div class="empty-msg">예약이 없습니다</div>';
   } else {
-    // 다른 달 → 해당 월 전체 리스트
     labelEl.textContent=`${dCalY}년 ${dCalM+1}월 전체`;
     const list=bookings.filter(b=>b.date.startsWith(calMonthStr)&&b.status!=='cancelled').sort((a,z)=>a.date.localeCompare(z.date)||a.startTime.localeCompare(z.startTime));
-    countEl.textContent=list.length?`${list.length}건`:'';
+    const confirmed=list.filter(b=>b.status==='done'||b.status==='confirmed');
+    const rev=confirmed.reduce((a,b)=>a+b.totalPrice,0);
+    countEl.innerHTML=confirmed.length
+      ? `<span style="font-weight:700;color:var(--tx)">${confirmed.length}건</span>${rev>0?` <span style="font-family:'DM Serif Display',serif;font-weight:700;color:var(--pk);font-size:.85rem">${fmtMoney(rev)}</span>`:''}`
+      : '';
     listEl.innerHTML=list.length?list.map(b=>bkItemHTML(b)).join(''):'<div class="empty-msg">해당 월 예약이 없습니다</div>';
   }
 }
