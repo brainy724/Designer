@@ -477,7 +477,11 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
           <div class="pc">
             <div class="field"><label>고객 이름 *</label><input id="nb-name" placeholder="홍길동"></div>
             <div class="field"><label>연락처 *</label><input id="nb-phone" type="tel" placeholder="010-0000-0000"></div>
-            <div class="field"><label>시술 (복수 선택)</label><div id="nb-svc-list" style="display:flex;flex-direction:column;gap:5px;margin-top:4px"></div></div>
+            <div class="field">
+              <label>시술 (복수 선택)</label>
+              <div id="nb-cat-tabs" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;margin-top:4px"></div>
+              <div id="nb-svc-list" style="display:flex;flex-direction:column;gap:5px"></div>
+            </div>
             <div id="nb-sel-summary" class="sel-summary" style="margin-top:8px"></div>
             <div class="field" style="margin-top:8px"><label>날짜 *</label><input id="nb-date" type="date"></div>
             <div class="field"><label>시작 시간 *</label>
@@ -1323,24 +1327,74 @@ function adjustTime(id){
 }
 
 // ── 관리자 예약 등록 ──
+let nbActiveCat = '전체';
+let nbExtraOpts = {};
+
 function initNbForm(){
-  document.getElementById('nb-svc-list').innerHTML=services.map(s=>
-    `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:1.5px solid var(--ln);border-radius:6px;cursor:pointer;background:var(--bg)" id="nb-sc-${s.id}" onclick="toggleNbSvc(${s.id})">
-      <div style="width:15px;height:15px;border-radius:3px;border:1.5px solid var(--ln2);display:flex;align-items:center;justify-content:center;font-size:.55rem;flex-shrink:0" id="nb-ck-${s.id}"></div>
-      <span style="font-size:.82rem;font-weight:500">${s.name.ko}</span>
-      <span style="font-size:.65rem;background:var(--bg2);padding:1px 6px;border-radius:20px;color:var(--sub)">${fmtDur(s.durH)}</span>
-      <span style="margin-left:auto;font-family:'DM Serif Display',serif;font-size:.95rem">${fmtMoney(s.price)}</span>
-    </div>`).join('');
+  nbActiveCat = '전체';
+  nbExtraOpts = {};
+  renderNbCatTabs();
+  renderNbSvcList();
   document.getElementById('nb-time').innerHTML=getSlots().map(t=>`<option>${t}</option>`).join('');
   nbSelIds.clear();updateNbSummary();
 }
+
+function renderNbCatTabs(){
+  const el = document.getElementById('nb-cat-tabs');
+  if(!el) return;
+  const cats = [...new Set(services.map(s=>s.cat||'').filter(Boolean))];
+  if(!cats.length){ el.style.display='none'; return; }
+  el.style.display='flex';
+  const all = ['전체', ...cats];
+  el.innerHTML = all.map(c=>
+    `<button onclick="setNbCat('${c}')" style="padding:5px 12px;border-radius:20px;border:1.5px solid ${nbActiveCat===c?'var(--pk)':'var(--ln)'};background:${nbActiveCat===c?'var(--pk)':'var(--bg2)'};color:${nbActiveCat===c?'var(--w)':'var(--sub)'};font-size:.72rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif;white-space:nowrap">${c}</button>`
+  ).join('');
+}
+
+function setNbCat(cat){
+  nbActiveCat = cat;
+  renderNbCatTabs();
+  renderNbSvcList();
+}
+
+function renderNbSvcList(){
+  const filtered = nbActiveCat==='전체' ? services : services.filter(s=>(s.cat||'')===nbActiveCat);
+  document.getElementById('nb-svc-list').innerHTML = filtered.map(s=>{
+    const isSel = nbSelIds.has(s.id);
+    const hasOpts = s.extraOpts && s.extraOpts.length > 0;
+    const selOpt = nbExtraOpts[s.id] !== undefined ? nbExtraOpts[s.id] : 0;
+    const optHtml = hasOpts && isSel ? `
+      <div onclick="event.stopPropagation()" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--ln)">
+        <div style="font-size:.68rem;color:var(--sub);margin-bottom:4px">기장 선택</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${s.extraOpts.map((o,i)=>`
+            <button onclick="event.stopPropagation();setNbExtraOpt(${s.id},${i})"
+              style="padding:3px 9px;border-radius:20px;border:1.5px solid ${selOpt===i?'var(--pk)':'var(--ln)'};background:${selOpt===i?'var(--pk)':'var(--w)'};color:${selOpt===i?'var(--w)':'var(--tx)'};font-size:.68rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">
+              ${o.label}${o.price>0?' +'+o.price.toLocaleString()+'원':''}
+            </button>`).join('')}
+        </div>
+      </div>` : '';
+    return `<div style="padding:7px 10px;border:1.5px solid ${isSel?'var(--pk)':'var(--ln)'};border-radius:6px;cursor:pointer;background:${isSel?'var(--pk-light)':'var(--bg)'}" id="nb-sc-${s.id}" onclick="toggleNbSvc(${s.id})">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:15px;height:15px;border-radius:3px;border:1.5px solid ${isSel?'var(--pk)':'var(--ln2)'};display:flex;align-items:center;justify-content:center;font-size:.55rem;flex-shrink:0;background:${isSel?'var(--pk)':'var(--w)'};color:var(--w)" id="nb-ck-${s.id}">${isSel?'✓':''}</div>
+        <span style="font-size:.82rem;font-weight:500">${s.name.ko}</span>
+        <span style="font-size:.65rem;background:var(--bg2);padding:1px 6px;border-radius:20px;color:var(--sub)">${fmtDur(s.durH)}</span>
+        <span style="margin-left:auto;font-family:'DM Serif Display',serif;font-size:.9rem">${s.price?fmtMoney(s.price):''}</span>
+      </div>
+      ${optHtml}
+    </div>`;
+  }).join('');
+}
+
+function setNbExtraOpt(svcId, optIdx){
+  nbExtraOpts[svcId] = optIdx;
+  renderNbSvcList();
+}
 let nbSelIds=new Set();
 function toggleNbSvc(id){
-  if(nbSelIds.has(id))nbSelIds.delete(id);else nbSelIds.add(id);
-  const ck=document.getElementById('nb-ck-'+id);
-  const card=document.getElementById('nb-sc-'+id);
-  if(nbSelIds.has(id)){ck.textContent='✓';ck.style.background=ck.style.borderColor='var(--tx)';ck.style.color='var(--w)';card.style.borderColor='var(--tx)';}
-  else{ck.textContent='';ck.style.background='';ck.style.borderColor='var(--ln2)';ck.style.color='';card.style.borderColor='var(--ln)';}
+  if(nbSelIds.has(id)){ nbSelIds.delete(id); delete nbExtraOpts[id]; }
+  else { nbSelIds.add(id); nbExtraOpts[id]=0; }
+  renderNbSvcList();
   updateNbSummary();
 }
 function updateNbSummary(){
@@ -1349,8 +1403,16 @@ function updateNbSummary(){
   if(!arr.length){sumEl.classList.remove('show');return;}
   sumEl.classList.add('show');
   const dur=arr.reduce((a,s)=>a+s.durH,0);
-  const price=arr.reduce((a,s)=>a+s.price,0);
-  sumEl.innerHTML=`<div class="sel-tags">${arr.map(s=>`<span class="sel-tag">${s.name.ko}</span>`).join('')}</div>
+  const price=arr.reduce((a,s)=>{
+    const optIdx=nbExtraOpts[s.id]||0;
+    const extra=(s.extraOpts&&s.extraOpts[optIdx])?s.extraOpts[optIdx].price:0;
+    return a+s.price+extra;
+  },0);
+  sumEl.innerHTML=`<div class="sel-tags">${arr.map(s=>{
+    const optIdx=nbExtraOpts[s.id]||0;
+    const opt=s.extraOpts&&s.extraOpts[optIdx];
+    return `<span class="sel-tag">${s.name.ko}${opt&&opt.label?' ('+opt.label+')':''}</span>`;
+  }).join('')}</div>
     <div class="sel-sum-row"><span class="sel-sum-label">총 소요</span><span class="sel-sum-val">${fmtDur(dur)}</span></div>
     <div class="sel-sum-row"><span class="sel-sum-label">합계</span><span class="sel-sum-total">${fmtMoney(price)}</span></div>`;
 }
@@ -1363,14 +1425,25 @@ function submitAdminBooking(){
   if(!name||!phone||!date||!nbSelIds.size){alert('이름, 연락처, 시술, 날짜를 모두 입력해주세요.');return;}
   const arr=services.filter(s=>nbSelIds.has(s.id));
   const totalDurH=arr.reduce((a,s)=>a+s.durH,0);
-  const totalPrice=arr.reduce((a,s)=>a+s.price,0);
+  const totalPrice=arr.reduce((a,s)=>{
+    const optIdx=nbExtraOpts[s.id]||0;
+    const extra=(s.extraOpts&&s.extraOpts[optIdx])?s.extraOpts[optIdx].price:0;
+    return a+s.price+extra;
+  },0);
   const endTime=addTimeH(startTime,totalDurH);
   if(!canStartAt(date,startTime,totalDurH)){
     document.getElementById('nb-time-check').className='banner';document.getElementById('nb-time-check').style.display='block';
     document.getElementById('nb-time-check').style.background='var(--red-bg)';document.getElementById('nb-time-check').style.color='var(--red)';
     document.getElementById('nb-time-check').textContent='⚠️ 해당 시간대에 이미 예약이 있습니다.';return;
   }
-  bookings.push({id:bkNextId++,name,phone,services:arr.map(s=>({id:s.id,name:s.name.ko,price:s.price,durH:s.durH})),date,startTime,endTime,totalDurH,totalPrice,note,status:'confirmed'});
+  const svcArr=arr.map(s=>{
+    const optIdx=nbExtraOpts[s.id]||0;
+    const opt=s.extraOpts&&s.extraOpts[optIdx];
+    const extra=opt?opt.price:0;
+    const optLabel=opt&&opt.label?` (${opt.label})`:'';
+    return {id:s.id,name:s.name.ko+optLabel,price:s.price+extra,durH:s.durH};
+  });
+  bookings.push({id:bkNextId++,name,phone,services:svcArr,date,startTime,endTime,totalDurH,totalPrice,note,status:'confirmed'});
   document.getElementById('nb-name').value='';document.getElementById('nb-phone').value='';
   document.getElementById('nb-date').value='';document.getElementById('nb-note').value='';
   document.getElementById('nb-time-check').style.display='none';
