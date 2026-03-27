@@ -415,6 +415,8 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
     </div>
   </div>
   <div id="adminApp" style="display:none">
+    <!-- 미확인 예약 알림 배너 -->
+    <div id="pendingBanner" style="display:none;align-items:center;gap:8px;padding:10px 16px;background:#FFF8EE;border-bottom:1px solid #E8D090;color:#7A5A00;font-size:.78rem;font-family:'DM Sans','Noto Sans KR',sans-serif"></div>
     <div class="admin-wrap">
       <div class="admin-side">
         <div class="aside-logo">Designer Sera</div>
@@ -498,6 +500,8 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
         <div class="apanel" id="panel-customers">
           <div class="dash-head"><div class="dash-title">고객 관리</div></div>
           <div class="field"><input id="custSearch" placeholder="이름 또는 연락처 검색…" oninput="renderCustomers(this.value)" style="background:var(--w)"></div>
+          <!-- 그룹 필터 탭 -->
+          <div id="custGroupTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
           <div id="custList"></div>
         </div>
 
@@ -859,6 +863,7 @@ let rvNextId = 1;
 
 // 고객 메모 & 사진
 let custNotes = {}; // phone -> string
+let custGroups = {}; // phone -> group string
 let custPhotos = {}; // phone -> [dataURL]
 
 // 선택된 시술 IDs (multi-select)
@@ -1038,6 +1043,7 @@ function saveData(){
     localStorage.setItem('sera_dayBlocks',JSON.stringify(dayBlocks));
     localStorage.setItem('sera_custNotes',JSON.stringify(custNotes));
     localStorage.setItem('sera_custPhotos',JSON.stringify(custPhotos));
+    localStorage.setItem('sera_custGroups',JSON.stringify(custGroups));
     localStorage.setItem('sera_ids',JSON.stringify({svcNextId,bkNextId,rvNextId}));
     localStorage.setItem('sera_hours',JSON.stringify({open:OPEN,close:CLOSE}));
   }catch(e){}
@@ -1053,6 +1059,7 @@ function loadData(){
     const db=localStorage.getItem('sera_dayBlocks');if(db)dayBlocks=JSON.parse(db);
     const cn=localStorage.getItem('sera_custNotes');if(cn)custNotes=JSON.parse(cn);
     const cp=localStorage.getItem('sera_custPhotos');if(cp)custPhotos=JSON.parse(cp);
+    const cg=localStorage.getItem('sera_custGroups');if(cg)custGroups=JSON.parse(cg);
     const ids=localStorage.getItem('sera_ids');
     if(ids){const p=JSON.parse(ids);svcNextId=p.svcNextId;bkNextId=p.bkNextId;rvNextId=p.rvNextId;}
     const hr=localStorage.getItem('sera_hours');
@@ -1160,6 +1167,10 @@ async function initAdmin(){
   renderMenuManage();
   // 현재 설정 Supabase에 자동 저장 (카톡 인앱브라우저 대응)
   saveSettingsToSupa().catch(()=>{});
+  // 자동 예약 완료 처리
+  autoCompleteBookings();
+  // 미확인 예약 알림
+  checkPendingAlert();
   // 7일 이상 백업 안 했으면 알림
   checkAutoBackupReminder();
 }
@@ -1560,22 +1571,60 @@ async function deleteCustomer(phone, name, e){
   renderCustomers(document.getElementById('custSearch').value);
 }
 
+// 그룹 목록 (기본 + 커스텀)
+const DEFAULT_GROUPS = ['전체','단골','VIP','외국인','신규'];
+let activeGroupFilter = '전체';
+
+function renderGroupTabs(){
+  const el = document.getElementById('custGroupTabs');
+  if(!el) return;
+  // 사용 중인 커스텀 그룹 수집
+  const usedGroups = [...new Set(Object.values(custGroups).filter(Boolean))];
+  const allGroups = ['전체', ...new Set([...DEFAULT_GROUPS.slice(1), ...usedGroups])];
+  el.innerHTML = allGroups.map(g=>`
+    <button onclick="setGroupFilter('${g}')" style="padding:5px 12px;border-radius:20px;border:1.5px solid ${activeGroupFilter===g?'var(--pk)':'var(--ln)'};background:${activeGroupFilter===g?'var(--pk)':'var(--bg2)'};color:${activeGroupFilter===g?'var(--w)':'var(--sub)'};font-size:.72rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif;white-space:nowrap">${g}</button>
+  `).join('');
+}
+
+function setGroupFilter(g){
+  activeGroupFilter = g;
+  renderGroupTabs();
+  renderCustomers(document.getElementById('custSearch').value);
+}
+
 function renderCustomers(filter=''){
+  renderGroupTabs();
   const map={};
   bookings.forEach(b=>{if(!map[b.phone])map[b.phone]={name:b.name,phone:b.phone,list:[]};map[b.phone].list.push(b);});
-  const custs=Object.values(map).filter(c=>!filter||(c.name.includes(filter)||c.phone.includes(filter)));
+  let custs = Object.values(map).filter(c=>!filter||(c.name.includes(filter)||c.phone.includes(filter)));
+
+  // 그룹 필터
+  if(activeGroupFilter !== '전체'){
+    custs = custs.filter(c=>(custGroups[c.phone]||'') === activeGroupFilter);
+  }
+
+  // 정렬: 한글 가나다순, 영어 abc순
+  custs.sort((a,b)=>{
+    const an=a.name, bn=b.name;
+    const aKo=/[가-힣]/.test(an[0]), bKo=/[가-힣]/.test(bn[0]);
+    if(aKo&&bKo) return an.localeCompare(bn,'ko');
+    if(!aKo&&!bKo) return an.localeCompare(bn,'en');
+    return aKo ? -1 : 1; // 한글 먼저
+  });
+
   document.getElementById('custList').innerHTML=custs.map(c=>{
     const done=c.list.filter(b=>b.status==='done');
-    const last=done.sort((a,z)=>z.date.localeCompare(a.date))[0];
+    const last=[...done].sort((a,z)=>z.date.localeCompare(a.date))[0];
     const revisit=last&&(TODAY-new Date(last.date+'T00:00:00'))/86400000>60;
+    const group=custGroups[c.phone]||'';
     return `<div class="cust-card" onclick="openCustModal('${c.phone}')">
       <div class="cust-av">${c.name[0]}</div>
       <div class="cust-info">
-        <div class="cust-name">${c.name}</div>
+        <div class="cust-name">${c.name} ${group?`<span style="font-size:.62rem;padding:1px 6px;border-radius:10px;background:var(--pk-light);color:var(--pk-dark);margin-left:4px">${group}</span>`:''}</div>
         <div class="cust-meta">${c.phone} · ${done.length}회 방문${revisit?' · 🔔 재방문알림':''}</div>
       </div>
       ${done.length>=3?'<span class="sbadge sb-confirmed">VIP</span>':''}
-      <button onclick="deleteCustomer('${c.phone}','${c.name}',event)" style="margin-left:auto;padding:5px 10px;border:1.5px solid #DEC0C0;border-radius:6px;background:var(--red-bg);color:var(--red);font-size:.72rem;cursor:pointer;flex-shrink:0;font-family:'DM Sans','Noto Sans KR',sans-serif">삭제</button>
+      <button onclick="deleteCustomer('${c.phone}','${c.name}',event)" style="margin-left:4px;padding:5px 10px;border:1.5px solid #DEC0C0;border-radius:6px;background:var(--red-bg);color:var(--red);font-size:.72rem;cursor:pointer;flex-shrink:0;font-family:'DM Sans','Noto Sans KR',sans-serif">삭제</button>
     </div>`;
   }).join('')||'<div class="empty-msg">고객이 없습니다</div>';
 }
@@ -1587,10 +1636,21 @@ function openCustModal(phone){
   document.getElementById('custMTitle').textContent=c.name;
   const done=c.list.filter(b=>b.status==='done').sort((a,z)=>z.date.localeCompare(a.date));
   const photos=custPhotos[phone];
+  const group = custGroups[phone]||'';
   document.getElementById('custMBody').innerHTML=`
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:13px">
       <div class="cust-av">${c.name[0]}</div>
       <div><div style="font-weight:500">${c.name}</div><div style="font-size:.72rem;color:var(--sub);margin-top:1px">${c.phone}</div></div>
+    </div>
+    <div class="msec">그룹 설정</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+      ${['없음','단골','VIP','외국인','신규'].map(g=>`
+        <button onclick="setCustGroup('${phone}','${g==='없음'?'':g}')" style="padding:5px 12px;border-radius:20px;border:1.5px solid ${group===(g==='없음'?'':g)?'var(--pk)':'var(--ln)'};background:${group===(g==='없음'?'':g)?'var(--pk)':'var(--bg2)'};color:${group===(g==='없음'?'':g)?'var(--w)':'var(--sub)'};font-size:.74rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">${g}</button>
+      `).join('')}
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <input id="customGroupInput" placeholder="직접 입력 (예: 임산부)" style="flex:1;padding:6px 10px;border:1.5px solid var(--ln);border-radius:7px;font-size:.78rem;font-family:'DM Sans','Noto Sans KR',sans-serif" value="${group&&!['단골','VIP','외국인','신규'].includes(group)?group:''}">
+      <button onclick="setCustGroup('${phone}',document.getElementById('customGroupInput').value.trim())" class="btn-outline" style="white-space:nowrap">적용</button>
     </div>
     <div class="msec">메모</div>
     <textarea id="custNoteArea" style="width:100%;padding:9px 11px;border:1.5px solid var(--ln);border-radius:7px;font-family:'DM Sans','Noto Sans KR',sans-serif;font-size:.8rem;min-height:64px;outline:none;resize:vertical" placeholder="모발 상태, 선호 스타일 등 메모...">${custNotes[phone]||''}</textarea>
@@ -1618,6 +1678,54 @@ function renderPhotoGrid(phone){
     `<div class="photo-cell photo-add" onclick="document.getElementById('photoInput-${phone}').click()"><span class="ph-ico">+</span><span>사진 추가</span></div>`;
 }
 function saveCustNote(phone){custNotes[phone]=document.getElementById('custNoteArea').value;saveData();alert('저장되었습니다!');}
+
+function setCustGroup(phone, group){
+  custGroups[phone] = group;
+  saveData();
+  // 모달 새로고침
+  closeModal('custModal');
+  setTimeout(()=>{ openCustModal(phone); renderCustomers(document.getElementById('custSearch').value); }, 100);
+}
+
+// ── 미확인 예약 알림 배너 ──
+function checkPendingAlert(){
+  const pending = bookings.filter(b=>b.status==='pending'||b.status==='cancel_req'||b.status==='change_req');
+  const banner = document.getElementById('pendingBanner');
+  if(!banner) return;
+  if(pending.length){
+    const msgs = [];
+    const p = bookings.filter(b=>b.status==='pending').length;
+    const c = bookings.filter(b=>b.status==='cancel_req').length;
+    const ch = bookings.filter(b=>b.status==='change_req').length;
+    if(p) msgs.push(`미확인 예약 ${p}건`);
+    if(c) msgs.push(`취소 요청 ${c}건`);
+    if(ch) msgs.push(`변경 요청 ${ch}건`);
+    banner.style.display='flex';
+    banner.innerHTML=`<span>🔔 ${msgs.join(' · ')} 있어요!</span>
+      <button onclick="showPanel('dash',null);this.closest('#pendingBanner').style.display='none'" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:.75rem;color:inherit;text-decoration:underline">확인하기</button>
+      <button onclick="this.closest('#pendingBanner').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:.9rem;color:inherit;margin-left:6px">✕</button>`;
+  } else {
+    banner.style.display='none';
+  }
+}
+
+// ── 자동 예약 완료 처리 ──
+function autoCompleteBookings(){
+  const nowStr = todayStr;
+  const nowMin = new Date().getHours()*60 + new Date().getMinutes();
+  let changed = false;
+  bookings.forEach(b=>{
+    if(b.status!=='confirmed') return;
+    if(b.date < nowStr){ // 지난 날짜
+      b.status='done'; changed=true;
+      updateBookingStatusSupa(b.id,'done').catch(()=>{});
+    } else if(b.date===nowStr){ // 오늘 중 종료된 예약
+      const endMin = timeToMin(b.endTime);
+      if(endMin<=nowMin){ b.status='done'; changed=true; updateBookingStatusSupa(b.id,'done').catch(()=>{}); }
+    }
+  });
+  if(changed){ saveData(); renderDash(); }
+}
 function addPhoto(phone,input){
   if(!input.files[0])return;
   const reader=new FileReader();
