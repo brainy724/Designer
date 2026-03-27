@@ -1267,9 +1267,10 @@ async function doLookup(){
         const idx=bookings.findIndex(b=>b.id===sb.id);
         if(idx>=0) bookings[idx]=sb; else bookings.push(sb);
       });
-      saveData();
+      try{ saveData(); }catch(e){ console.log('saveData 오류:',e); }
     }
     supaOk = true;
+    alert('Supabase 조회 완료. found:'+found.length);
   } catch(e){
     // Supabase 실패 시 localStorage fallback
     loadData();
