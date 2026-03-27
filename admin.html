@@ -480,7 +480,8 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
             <div class="field">
               <label>시술 (복수 선택)</label>
               <div id="nb-cat-tabs" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;margin-top:4px"></div>
-              <div id="nb-svc-list" style="display:flex;flex-direction:column;gap:5px"></div>
+              <div id="nb-svc-list" style="display:flex;flex-direction:column;gap:5px;overflow:hidden;transition:max-height .3s ease"></div>
+              <button id="nbSvcToggleBtn" onclick="toggleNbSvcList()" style="display:none;width:100%;margin-top:6px;padding:7px;border:1.5px solid var(--ln);border-radius:7px;background:var(--bg2);font-size:.74rem;cursor:pointer;color:var(--sub);font-family:'DM Sans','Noto Sans KR',sans-serif"></button>
             </div>
             <div id="nb-sel-summary" class="sel-summary" style="margin-top:8px"></div>
             <div class="field" style="margin-top:8px"><label>날짜 *</label><input id="nb-date" type="date"></div>
@@ -1391,6 +1392,7 @@ function adjustTime(id){
 // ── 관리자 예약 등록 ──
 let nbActiveCat = '전체';
 let nbExtraOpts = {};
+let nbSvcListExpanded = false;
 
 function initNbForm(){
   nbActiveCat = '전체';
@@ -1415,6 +1417,7 @@ function renderNbCatTabs(){
 
 function setNbCat(cat){
   nbActiveCat = cat;
+  nbSvcListExpanded = false;
   renderNbCatTabs();
   renderNbSvcList();
 }
@@ -1446,6 +1449,31 @@ function renderNbSvcList(){
       ${optHtml}
     </div>`;
   }).join('');
+  setTimeout(applyNbSvcCollapse, 50);
+}
+
+function applyNbSvcCollapse(){
+  const el = document.getElementById('nb-svc-list');
+  const btn = document.getElementById('nbSvcToggleBtn');
+  if(!el||!btn) return;
+  const items = el.querySelectorAll('[id^="nb-sc-"]');
+  const SHOW = 4;
+  if(items.length <= SHOW){ el.style.maxHeight=''; btn.style.display='none'; return; }
+  btn.style.display = 'block';
+  if(nbSvcListExpanded){
+    el.style.maxHeight = el.scrollHeight+'px';
+    btn.textContent = '▲ 접기';
+  } else {
+    let h=0;
+    for(let i=0;i<SHOW;i++) if(items[i]) h+=items[i].offsetHeight+5;
+    el.style.maxHeight = h+'px';
+    btn.textContent = `▼ 전체 보기 (${items.length}개)`;
+  }
+}
+
+function toggleNbSvcList(){
+  nbSvcListExpanded = !nbSvcListExpanded;
+  applyNbSvcCollapse();
 }
 
 function setNbExtraOpt(svcId, optIdx){
