@@ -1250,6 +1250,10 @@ async function doLookup(){
     });
     // 이름+연락처로 필터링
     const matched = data.filter(b=>b.name===name && normPhone(b.phone)===normPhone(phone));
+    // 디버그
+    const nameMatch = data.filter(b=>b.name===name);
+    const phoneMatch = data.filter(b=>normPhone(b.phone)===normPhone(phone));
+    alert(`전체:${data.length}건\n이름일치:${nameMatch.length}건\n전화일치:${phoneMatch.length}건\n둘다:${matched.length}건\n\n입력이름:[${name}]\n입력전화:[${normPhone(phone)}]\n${nameMatch.length>0?'저장이름:['+nameMatch[0].name+']':''}\n${phoneMatch.length>0?'저장전화:['+normPhone(phoneMatch[0].phone)+']':''}`);
     if(matched.length){
       found = matched.map(b=>({
         id:b.id, name:b.name, phone:b.phone,
