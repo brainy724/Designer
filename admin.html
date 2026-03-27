@@ -220,7 +220,7 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
 .asbtn.on{background:var(--pk-light);color:var(--pk-dark);font-weight:600;}
 .asbtn .ico{font-size:.76rem;width:14px;text-align:center;}
 .admin-main{flex:1;overflow:hidden;}
-.apanel{display:none;height:calc(100vh - 52px);overflow-y:auto;padding:18px;}
+.apanel{display:none;height:calc(100vh - 52px);overflow-y:auto;padding:18px;padding-bottom:80px;-webkit-overflow-scrolling:touch;}
 .apanel.on{display:block;animation:fadeUp .18s ease;}
 
 /* login */
@@ -400,6 +400,7 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
     <button class="lang-btn on" id="lang-ko" onclick="setLang('ko')" style="display:none">KO</button>
     <button class="lang-btn" id="lang-en" onclick="setLang('en')" style="display:none">EN</button>
     <button onclick="goToBooking()" style="font-size:.7rem;color:var(--sub);background:none;padding:5px 12px;border:1.5px solid var(--ln2);border-radius:5px;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif;transition:all .15s;" onmouseover="this.style.borderColor='var(--tx)';this.style.color='var(--tx)'" onmouseout="this.style.borderColor='var(--ln2)';this.style.color='var(--sub)'">← 예약 페이지</button>
+    <button onclick="doLogout()" id="logoutTopBtn" style="display:none;font-size:.7rem;color:var(--red);background:none;padding:5px 12px;border:1.5px solid #DEC0C0;border-radius:5px;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">로그아웃</button>
   </div>
 </div>
 
@@ -659,20 +660,20 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
 
           <!-- 가계부 테이블 -->
           <div class="pc">
-            <div class="pc-title" style="margin-bottom:10px">
-              📒 가계부
-              <span style="font-size:.72rem;color:var(--sub);font-family:'DM Sans',sans-serif" id="rvLedgerSummary"></span>
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:6px">
+              <div class="pc-title" style="margin:0">📒 가계부</div>
+              <div id="rvLedgerSummary" style="font-size:.73rem;font-family:'DM Sans','Noto Sans KR',sans-serif;line-height:1.7"></div>
             </div>
-            <div style="overflow-x:auto">
-              <table style="width:100%;border-collapse:collapse;font-size:.76rem" id="rvLedgerTable">
+            <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:8px;border:1px solid var(--ln)">
+              <table style="width:100%;border-collapse:collapse;min-width:400px" id="rvLedgerTable">
                 <thead>
-                  <tr style="border-bottom:2px solid var(--ln);text-align:left">
-                    <th style="padding:6px 8px;color:var(--sub);font-weight:500;white-space:nowrap">날짜</th>
-                    <th style="padding:6px 8px;color:var(--sub);font-weight:500">분류</th>
-                    <th style="padding:6px 8px;color:var(--sub);font-weight:500">내용</th>
-                    <th style="padding:6px 8px;color:var(--sub);font-weight:500;text-align:right">금액</th>
-                    <th style="padding:6px 8px;color:var(--sub);font-weight:500">비고</th>
-                    <th style="padding:6px 4px"></th>
+                  <tr style="background:var(--bg2)">
+                    <th style="padding:9px 10px;color:var(--sub);font-weight:600;font-size:.72rem;white-space:nowrap;border-bottom:1.5px solid var(--ln);text-align:left">날짜</th>
+                    <th style="padding:9px 8px;color:var(--sub);font-weight:600;font-size:.72rem;border-bottom:1.5px solid var(--ln);text-align:left">분류</th>
+                    <th style="padding:9px 8px;color:var(--sub);font-weight:600;font-size:.72rem;border-bottom:1.5px solid var(--ln);text-align:left">내용</th>
+                    <th style="padding:9px 10px;color:var(--sub);font-weight:600;font-size:.72rem;border-bottom:1.5px solid var(--ln);text-align:right;white-space:nowrap">금액</th>
+                    <th style="padding:9px 8px;color:var(--sub);font-weight:600;font-size:.72rem;border-bottom:1.5px solid var(--ln);text-align:left">비고</th>
+                    <th style="padding:9px 6px;border-bottom:1.5px solid var(--ln)"></th>
                   </tr>
                 </thead>
                 <tbody id="rvLedgerBody"></tbody>
@@ -1160,6 +1161,7 @@ let adminPw = localStorage.getItem('sera_adminPw')||'1234';
 
 function doLogin(){
   if(document.getElementById('pwInput').value===adminPw){
+    localStorage.setItem('sera_loggedIn','1');
     document.getElementById('adminLogin').style.display='none';
     document.getElementById('adminApp').style.display='block';
     initAdmin();
@@ -1167,9 +1169,12 @@ function doLogin(){
 }
 
 function doLogout(){
+  localStorage.removeItem('sera_loggedIn');
   document.getElementById('adminApp').style.display='none';
   document.getElementById('adminLogin').style.display='block';
   document.getElementById('pwInput').value='';
+  const lb=document.getElementById('logoutTopBtn');
+  if(lb)lb.style.display='none';
 }
 
 async function initAdmin(){
@@ -1205,6 +1210,8 @@ async function initAdmin(){
   checkPendingAlert();
   // 7일 이상 백업 안 했으면 알림
   checkAutoBackupReminder();
+  const lb=document.getElementById('logoutTopBtn');
+  if(lb)lb.style.display='block';
 }
 
 function renderMenuManage(){
@@ -1436,6 +1443,7 @@ function openBkModal(id){
   if(b.status==='cancel_req')acts+=`<div style="display:flex;gap:6px"><button class="btn-sm btn-ok" onclick="approveReq(${id});closeModal('bkModal')">취소 승인</button><button class="btn-sm btn-ng" onclick="rejectReq(${id});closeModal('bkModal')">거절</button></div>`;
   if(b.status==='change_req')acts+=`<div style="display:flex;gap:6px"><button class="btn-sm btn-ok" onclick="approveReq(${id});closeModal('bkModal')">변경 승인</button><button class="btn-sm btn-ng" onclick="rejectReq(${id});closeModal('bkModal')">거절</button></div>`;
   if(b.status!=='cancelled'&&b.status!=='done')acts+=`<button class="btn btn-warn" onclick="chgStatus(${id},'cancelled');closeModal('bkModal');renderDash()" style="margin-top:4px">예약 취소</button>`;
+  if(b.status==='cancelled')acts+=`<button class="btn btn-warn" onclick="deleteBookingPermanent(${id})" style="margin-top:4px;border-color:#AD3535;background:#FDF0F0;color:#AD3535">🗑 예약 데이터 삭제</button>`;
   // 할인가 적용 (항상 표시)
   acts+=`<div class="msec" style="margin-top:8px">할인가 적용</div>
     <div style="display:flex;gap:6px;align-items:center">
@@ -2327,6 +2335,21 @@ function closeImgViewer(){
 window.addEventListener('click',e=>{if(e.target.classList.contains('modal-bg'))e.target.classList.remove('on');});
 function chgStatus(id,s){bookings.find(b=>b.id===id).status=s;saveData();updateBookingStatusSupa(id,s).catch(()=>{});}
 
+async function deleteBookingPermanent(id){
+  if(!confirm('예약 데이터를 완전히 삭제할까요?\n복구가 불가능해요.')) return;
+  bookings=bookings.filter(b=>b.id!==id);
+  saveData();
+  try{
+    await fetch(SUPA_URL+'/rest/v1/bookings?id=eq.'+id,{
+      method:'DELETE',
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    });
+  }catch(e){}
+  closeModal('bkModal');
+  renderDash();
+  renderCustomers(document.getElementById('custSearch')?.value||'');
+}
+
 // 할인가 적용
 async function applyDiscount(id){
   const inp = document.getElementById('discountPrice-'+id);
@@ -2863,14 +2886,10 @@ function renderLedger(monthStr){
   const totalProfit = totalIncome - totalCost;
 
   if(summary){
-    summary.innerHTML = `
-      <span style="display:inline-flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.74rem">
-        <span>매출 <b>${Number(totalOriginal).toLocaleString()}원</b></span>
-        ${totalDiscount>0?`<span style="color:var(--red)">할인 <b>-${Number(totalDiscount).toLocaleString()}원</b></span>`:''}
-        <span>순매출 <b style="color:var(--pk-dark)">${Number(totalIncome).toLocaleString()}원</b></span>
-        <span style="color:var(--red)">비용 <b>-${Number(totalCost).toLocaleString()}원</b></span>
-        <span style="color:${totalProfit>=0?'var(--grn)':'var(--red)'}">순이익 <b>${Number(totalProfit).toLocaleString()}원</b></span>
-      </span>`;
+    summary.innerHTML =
+      `<span style="color:var(--sub)">순매출 </span><b style="color:var(--pk-dark)">${Number(totalIncome).toLocaleString()}원</b>`+
+      (totalCost>0?` <span style="color:var(--sub)"> · 비용 </span><b style="color:var(--red)">${Number(totalCost).toLocaleString()}원</b>`:'') +
+      ` <span style="color:var(--sub)"> · 순이익 </span><b style="color:${totalProfit>=0?'var(--grn)':'var(--red)'}">${Number(totalProfit).toLocaleString()}원</b>`;
   }
 
   if(!all.length){
@@ -2882,34 +2901,42 @@ function renderLedger(monthStr){
     const isIncome = r.type==='income';
     const amtStr = isIncome
       ? `<span style="color:var(--tx)">${Number(r.amount).toLocaleString()}원</span>`
-      : `<span style="color:var(--red)">(${Number(r.amount).toLocaleString()}원)</span>`;
+      : `<span style="color:var(--red)">${Number(r.amount).toLocaleString()}원</span>`;
     const dateShort = r.date.slice(2); // yy-mm-dd
     const delBtn = isIncome ? `<button onclick="deleteIncomeEntry('${r.id}')" style="background:none;border:none;color:var(--sub2);cursor:pointer;font-size:.75rem;padding:2px 4px">✕</button>` : `<button onclick="deleteCostEntry(${r.id})" style="background:none;border:none;color:var(--sub2);cursor:pointer;font-size:.75rem;padding:2px 4px">✕</button>`;
-    return `<tr style="border-bottom:1px solid var(--ln)">
-      <td style="padding:7px 8px;white-space:nowrap;font-size:.73rem">${dateShort}</td>
-      <td style="padding:7px 8px"><span style="padding:2px 7px;border-radius:20px;font-size:.65rem;background:${isIncome?'var(--grn-bg)':'var(--red-bg)'};color:${isIncome?'var(--grn)':'var(--red)'}">${isIncome?'수익':'비용'}</span></td>
-      <td style="padding:7px 8px;font-size:.75rem;max-width:120px;word-break:break-all">${r.desc}</td>
-      <td style="padding:7px 8px;text-align:right;font-size:.78rem;font-weight:500;white-space:nowrap">${amtStr}</td>
-      <td style="padding:7px 8px;font-size:.72rem;color:var(--sub)">${r.discountMemo||r.memo||''}</td>
-      <td style="padding:7px 4px">${delBtn}</td>
+    return `<tr style="border-bottom:1px solid var(--ln);background:${isIncome?'var(--w)':'#FDFAFA'}">
+      <td style="padding:9px 10px;white-space:nowrap;font-size:.74rem;color:var(--sub);font-family:'DM Sans',sans-serif">${dateShort}</td>
+      <td style="padding:9px 8px">
+        <span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:.64rem;font-weight:600;background:${isIncome?'var(--grn-bg)':'var(--red-bg)'};color:${isIncome?'var(--grn)':'var(--red)'}">${isIncome?'수익':'비용'}</span>
+      </td>
+      <td style="padding:9px 8px;font-size:.78rem;font-weight:${isIncome?'500':'400'};color:var(--tx);max-width:130px;word-break:break-all">${r.desc}</td>
+      <td style="padding:9px 10px;text-align:right;font-size:.82rem;font-weight:600;white-space:nowrap;color:${isIncome?'var(--tx)':'var(--red)'};font-family:'DM Serif Display',serif">${amtStr}</td>
+      <td style="padding:9px 8px;font-size:.70rem;color:var(--sub2);max-width:80px;word-break:break-all">${r.discountMemo||r.memo||''}</td>
+      <td style="padding:9px 6px;text-align:center">${delBtn}</td>
     </tr>`;
   }).join('');
 
   // 합계 행
   body.innerHTML += `<tr style="border-top:2px solid var(--ln);background:var(--bg2)">
-    <td colspan="2" style="padding:8px 8px;font-size:.75rem;font-weight:600">합계</td>
-    <td style="padding:8px 8px;font-size:.72rem;color:var(--sub)">
-      매출 ${Number(totalOriginal).toLocaleString()}원
+    <td colspan="2" style="padding:10px 10px;font-size:.74rem;font-weight:700;color:var(--tx)">이번 달 합계</td>
+    <td style="padding:10px 8px;font-size:.71rem;color:var(--sub);line-height:1.7">
+      ${totalOriginal>0?`매출 ${Number(totalOriginal).toLocaleString()}원`:''}
       ${totalDiscount>0?`<br>할인 -${Number(totalDiscount).toLocaleString()}원`:''}
-      <br>순매출 ${Number(totalIncome).toLocaleString()}원
+      ${totalCost>0?`<br>비용 ${Number(totalCost).toLocaleString()}원`:''}
     </td>
-    <td style="padding:8px 8px;text-align:right;font-size:.82rem;font-weight:700;color:${totalProfit>=0?'var(--grn)':'var(--red)'}">${Number(totalProfit).toLocaleString()}원</td>
-    <td colspan="2"></td>
+    <td style="padding:10px 10px;text-align:right;font-size:.9rem;font-weight:700;color:${totalProfit>=0?'var(--grn)':'var(--red)'};font-family:'DM Serif Display',serif">${Number(totalProfit).toLocaleString()}원</td>
+    <td colspan="2" style="padding:10px 8px;font-size:.68rem;color:var(--sub2)">순이익</td>
   </tr>`;
 }
 
 // ── 초기화 ──
 loadData();
+// 새로고침 시 로그인 상태 복원
+if(localStorage.getItem('sera_loggedIn')==='1'){
+  document.getElementById('adminLogin').style.display='none';
+  document.getElementById('adminApp').style.display='block';
+  initAdmin();
+}
 </script>
 </body>
 </html>
