@@ -77,11 +77,11 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
 .svc-card.sel .svc-chk-box{background:var(--pk);border-color:var(--pk);color:var(--w);}
 
 /* selected services summary bar */
-.sel-summary{background:var(--tx);color:var(--w);border-radius:var(--r);padding:11px 14px;margin-bottom:14px;font-size:.78rem;display:none;}
+.sel-summary{background:var(--w);color:var(--tx);border:1.5px solid var(--ln);border-radius:var(--r);padding:11px 14px;margin-bottom:14px;font-size:.78rem;display:none;}
 .sel-summary.show{display:block;}
 .sel-sum-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
 .sel-sum-row:last-child{margin-bottom:0;}
-.sel-sum-label{color:rgba(255,255,255,.6);font-size:.66rem;}
+.sel-sum-label{color:var(--sub);font-size:.66rem;}
 .sel-sum-val{font-weight:500;}
 .sel-sum-total{font-family:'DM Serif Display',serif;font-size:1.1rem;}
 .sel-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;}
@@ -233,9 +233,9 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
 .dash-head{margin-bottom:14px;}
 .dash-title{font-family:'DM Serif Display',serif;font-size:1.5rem;font-weight:400;}
 .dash-date{font-size:.69rem;color:var(--sub);margin-top:2px;}
-.kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:13px;}
-.kpi{background:var(--w);border:1.5px solid var(--ln);border-radius:var(--r);padding:11px;}
-.kpi-n{font-family:'DM Serif Display',serif;font-size:1.8rem;line-height:1;color:var(--pk);}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:13px;}
+.kpi{background:var(--w);border:1.5px solid var(--ln);border-radius:var(--r);padding:11px;text-align:center;}
+.kpi-n{font-family:'DM Serif Display',serif;font-size:1.45rem;line-height:1;color:var(--pk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .kpi-l{font-size:.64rem;color:var(--sub);margin-top:3px;}
 .dash-grid{display:grid;grid-template-columns:1fr 1.3fr;gap:10px;}
 .pc{background:var(--w);border:1.5px solid var(--ln);border-radius:var(--r);padding:14px;}
@@ -444,9 +444,10 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
           <div class="dash-head"><div class="dash-title">대시보드</div><div class="dash-date" id="dashDate"></div></div>
           <div id="reqBanners"></div>
           <div class="kpi-row">
-            <div class="kpi" id="kpi-card0" style="cursor:pointer;transition:all .12s" onclick="kpiClick(0)"><div class="kpi-n" id="kpi0">0</div><div class="kpi-l">오늘 예약</div></div>
-            <div class="kpi" id="kpi-card1" style="cursor:pointer;transition:all .12s" onclick="kpiClick(1)"><div class="kpi-n" id="kpi1">0</div><div class="kpi-l">확인 대기</div></div>
-            <div class="kpi" id="kpi-card2" style="cursor:pointer;transition:all .12s" onclick="kpiClick(2)"><div class="kpi-n" id="kpi2">0</div><div class="kpi-l">이번 달</div></div>
+            <div class="kpi" id="kpi-card0" style="cursor:pointer;transition:all .12s" onclick="kpiClick(0)"><div class="kpi-n" id="kpi0">0</div><div class="kpi-l">오늘 남은</div></div>
+            <div class="kpi" id="kpi-card1" style="cursor:pointer;transition:all .12s" onclick="kpiClick(1)"><div class="kpi-n" id="kpi1">0</div><div class="kpi-l">미확인</div></div>
+            <div class="kpi" id="kpi-card2" style="cursor:pointer;transition:all .12s" onclick="kpiClick(2)"><div class="kpi-n" id="kpi2">0</div><div class="kpi-l" id="kpi-l2">이번달 매출</div></div>
+            <div class="kpi" id="kpi-card3" style="cursor:pointer;transition:all .12s" onclick="kpiClick(3)"><div class="kpi-n" id="kpi3">0</div><div class="kpi-l" id="kpi-l3">선택월 매출</div></div>
           </div>
           <div class="dash-grid">
             <div class="pc">
@@ -1147,7 +1148,7 @@ function renderCal(gridId,titleId,year,month,selDate,clickFn,adminMode=false,sho
 }
 function navCal(w,d){
   if(w==='b'){bCalM+=d;if(bCalM<0){bCalY--;bCalM=11;}if(bCalM>11){bCalY++;bCalM=0;}}
-  if(w==='d'){dCalM+=d;if(dCalM<0){dCalY--;dCalM=11;}if(dCalM>11){dCalY++;dCalM=0;}renderDCal();}
+  if(w==='d'){dCalM+=d;if(dCalM<0){dCalY--;dCalM=11;}if(dCalM>11){dCalY++;dCalM=0;}renderDash();}
   if(w==='c'){cCalM+=d;if(cCalM<0){cCalY--;cCalM=11;}if(cCalM>11){cCalY++;cCalM=0;}renderCCal();}
   if(w==='off'){offCalM+=d;if(offCalM<0){offCalY--;offCalM=11;}if(offCalM>11){offCalY++;offCalM=0;}renderOffCal();}
 }
@@ -1212,6 +1213,8 @@ async function initAdmin(){
   checkAutoBackupReminder();
   const lb=document.getElementById('logoutTopBtn');
   if(lb)lb.style.display='block';
+  // 1분마다 대시보드 자동 갱신 (오늘 남은 예약 카운트 업데이트)
+  setInterval(()=>{ if(document.getElementById('panel-dash')?.classList.contains('on')) renderDash(); }, 60000);
 }
 
 function renderMenuManage(){
@@ -1310,23 +1313,39 @@ function mTab(btn){document.querySelectorAll('.m-tab').forEach(b=>b.classList.re
 // ── 대시보드 ──
 function renderDash(){
   const now=TODAY;
+  const calMonthStr=`${dCalY}-${pad(dCalM+1)}`;
+  const isCurrentMonth=dCalY===now.getFullYear()&&dCalM===now.getMonth();
+
   document.getElementById('dashDate').textContent=`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일`;
-  const cnt0=bookings.filter(b=>b.date===todayStr&&b.status!=='cancelled').length;
+
+  const nowMin=new Date().getHours()*60+new Date().getMinutes();
+  const cnt0=bookings.filter(b=>b.date===todayStr&&b.status!=='cancelled'&&timeToMin(b.startTime)>nowMin).length;
   const cnt1=bookings.filter(b=>b.status==='pending').length;
-  const cnt2=bookings.filter(b=>b.date.startsWith(`${now.getFullYear()}-${pad(now.getMonth()+1)}`)&&b.status!=='cancelled').length;
+  const calCnt=bookings.filter(b=>b.date.startsWith(calMonthStr)&&b.status!=='cancelled').length;
+  const rev3=bookings.filter(b=>b.date.startsWith(calMonthStr)&&(b.status==='done'||b.status==='confirmed')).reduce((a,b)=>a+b.totalPrice,0);
+
   document.getElementById('kpi0').textContent=cnt0;
   document.getElementById('kpi1').textContent=cnt1;
-  document.getElementById('kpi2').textContent=cnt2;
-  // 0이면 클릭 불가 스타일
-  [0,1,2].forEach(i=>{
+  document.getElementById('kpi2').textContent=calCnt;
+  document.getElementById('kpi3').textContent=rev3===0?'0':fmtMoney(rev3).replace('원','');
+
+  // 라벨 업데이트
+  const l2=document.getElementById('kpi-l2');
+  const l3=document.getElementById('kpi-l3');
+  if(l2) l2.textContent=isCurrentMonth?'이번 달':` ${dCalM+1}월`;
+  if(l3) l3.textContent=isCurrentMonth?'이번달 매출':`${dCalM+1}월 매출`;
+
+  // 0이면 클릭 불가
+  [0,1,2,3].forEach(i=>{
     const card=document.getElementById('kpi-card'+i);
-    const cnt=[cnt0,cnt1,cnt2][i];
+    const cnt=[cnt0,cnt1,calCnt,rev3][i];
     if(card){
       card.style.opacity=cnt===0?'0.5':'1';
       card.style.cursor=cnt===0?'default':'pointer';
       card.style.pointerEvents=cnt===0?'none':'auto';
     }
   });
+
   const reqs=bookings.filter(b=>b.status==='cancel_req'||b.status==='change_req');
   document.getElementById('reqBanners').innerHTML=reqs.map(b=>`
     <div class="req-banner">
@@ -1343,16 +1362,23 @@ function renderDash(){
 
 function kpiClick(type){
   const now=TODAY;
+  const calMonthStr=`${dCalY}-${pad(dCalM+1)}`;
+  const isCurrentMonth=dCalY===now.getFullYear()&&dCalM===now.getMonth();
   let list=[], title='';
   if(type===0){
-    list=bookings.filter(b=>b.date===todayStr&&b.status!=='cancelled').sort((a,b)=>a.startTime.localeCompare(b.startTime));
-    title=`오늘 예약 (${list.length}건)`;
+    const _nowMin=new Date().getHours()*60+new Date().getMinutes();
+    list=bookings.filter(b=>b.date===todayStr&&b.status!=='cancelled'&&timeToMin(b.startTime)>_nowMin).sort((a,b)=>a.startTime.localeCompare(b.startTime));
+    title=`오늘 남은 예약 (${list.length}건)`;
   } else if(type===1){
     list=bookings.filter(b=>b.status==='pending').sort((a,b)=>a.date.localeCompare(b.date)||a.startTime.localeCompare(b.startTime));
-    title=`확인 대기 (${list.length}건)`;
+    title=`미확인 예약 (${list.length}건)`;
+  } else if(type===2){
+    list=bookings.filter(b=>b.date.startsWith(calMonthStr)&&b.status!=='cancelled').sort((a,b)=>a.date.localeCompare(b.date)||a.startTime.localeCompare(b.startTime));
+    title=isCurrentMonth?`이번 달 예약 (${list.length}건)`:`${dCalM+1}월 예약 (${list.length}건)`;
   } else {
-    list=bookings.filter(b=>b.date.startsWith(`${now.getFullYear()}-${pad(now.getMonth()+1)}`)&&b.status!=='cancelled').sort((a,b)=>a.date.localeCompare(b.date)||a.startTime.localeCompare(b.startTime));
-    title=`이번 달 예약 (${list.length}건)`;
+    list=bookings.filter(b=>b.date.startsWith(calMonthStr)&&(b.status==='done'||b.status==='confirmed')).sort((a,b)=>a.date.localeCompare(b.date)||a.startTime.localeCompare(b.startTime));
+    const rev=list.reduce((a,b)=>a+b.totalPrice,0);
+    title=isCurrentMonth?`이번달 매출 ${fmtMoney(rev)} (${list.length}건)`:`${dCalM+1}월 매출 ${fmtMoney(rev)} (${list.length}건)`;
   }
   document.getElementById('kpiModalTitle').textContent=title;
   if(!list.length){
@@ -1401,10 +1427,26 @@ function rejectReq(id){bookings.find(x=>x.id===id).status='confirmed';renderDash
 function renderDCal(){renderCal('dCalGrid','dashCalTitle',dCalY,dCalM,adminSelDate,'dPickDate',true,true);document.getElementById('dCalPrev').onclick=()=>navCal('d',-1);document.getElementById('dCalNext').onclick=()=>navCal('d',1);}
 function dPickDate(ds){adminSelDate=ds;renderDCal();renderDashList(ds);}
 function renderDashList(ds){
-  document.getElementById('dashListLabel').textContent=ds===todayStr?'오늘 예약':fmtKo(ds);
-  const list=bookings.filter(b=>b.date===ds).sort((a,z)=>a.startTime.localeCompare(z.startTime));
-  document.getElementById('dashListCount').textContent=list.length?`${list.length}건`:'';
-  document.getElementById('dashBkList').innerHTML=list.length?list.map(b=>bkItemHTML(b)).join(''):'<div class="empty-msg">예약이 없습니다</div>';
+  const now=TODAY;
+  const calMonthStr=`${dCalY}-${pad(dCalM+1)}`;
+  const isCurrentMonth=dCalY===now.getFullYear()&&dCalM===now.getMonth();
+  const labelEl=document.getElementById('dashListLabel');
+  const countEl=document.getElementById('dashListCount');
+  const listEl=document.getElementById('dashBkList');
+
+  if(isCurrentMonth){
+    // 이번 달 → 선택된 날짜 기준
+    labelEl.textContent=ds===todayStr?'오늘 예약':fmtKo(ds);
+    const list=bookings.filter(b=>b.date===ds).sort((a,z)=>a.startTime.localeCompare(z.startTime));
+    countEl.textContent=list.length?`${list.length}건`:'';
+    listEl.innerHTML=list.length?list.map(b=>bkItemHTML(b)).join(''):'<div class="empty-msg">예약이 없습니다</div>';
+  } else {
+    // 다른 달 → 해당 월 전체 리스트
+    labelEl.textContent=`${dCalY}년 ${dCalM+1}월 전체`;
+    const list=bookings.filter(b=>b.date.startsWith(calMonthStr)&&b.status!=='cancelled').sort((a,z)=>a.date.localeCompare(z.date)||a.startTime.localeCompare(z.startTime));
+    countEl.textContent=list.length?`${list.length}건`:'';
+    listEl.innerHTML=list.length?list.map(b=>bkItemHTML(b)).join(''):'<div class="empty-msg">해당 월 예약이 없습니다</div>';
+  }
 }
 
 function renderCCal(){renderCal('cCalGrid','calCalTitle',cCalY,cCalM,cCalSelDate,'cPickDate',true,true);document.getElementById('cCalPrev').onclick=()=>navCal('c',-1);document.getElementById('cCalNext').onclick=()=>navCal('c',1);}
