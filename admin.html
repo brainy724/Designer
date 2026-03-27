@@ -77,11 +77,11 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
 .svc-card.sel .svc-chk-box{background:var(--pk);border-color:var(--pk);color:var(--w);}
 
 /* selected services summary bar */
-.sel-summary{background:var(--pk-light);color:var(--pk-dark);border:1.5px solid var(--pk-mid);border-radius:var(--r);padding:11px 14px;margin-bottom:14px;font-size:.78rem;display:none;}
+.sel-summary{background:#1A1209;color:#fff;border:none;border-radius:var(--r);padding:11px 14px;margin-bottom:14px;font-size:.78rem;display:none;}
 .sel-summary.show{display:block;}
 .sel-sum-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
 .sel-sum-row:last-child{margin-bottom:0;}
-.sel-sum-label{color:var(--pk-dark);opacity:.7;font-size:.66rem;}
+.sel-sum-label{color:rgba(255,255,255,.65);font-size:.66rem;}
 .sel-sum-val{font-weight:500;}
 .sel-sum-total{font-family:'DM Serif Display',serif;font-size:1.1rem;}
 .sel-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;}
@@ -2068,6 +2068,31 @@ function addPhoto(phone,input){
 function delPhoto(phone,idx){custPhotos[phone].splice(idx,1);saveData();renderPhotoGrid(phone);}
 function saveCustNote(phone){custNotes[phone]=document.getElementById('custNoteArea').value;saveData();alert('저장되었습니다!');}
 
+async function saveCustPhone(oldPhone){
+  const input = document.getElementById('custPhoneEdit');
+  if(!input) return;
+  const newPhone = input.value.trim();
+  if(!newPhone){ alert('연락처를 입력해주세요.'); return; }
+  if(newPhone===oldPhone){ alert('동일한 연락처예요.'); return; }
+  // 로컬 데이터 업데이트
+  bookings.forEach(b=>{ if(b.phone===oldPhone) b.phone=newPhone; });
+  if(custNotes[oldPhone]){ custNotes[newPhone]=custNotes[oldPhone]; delete custNotes[oldPhone]; }
+  if(custPhotos[oldPhone]){ custPhotos[newPhone]=custPhotos[oldPhone]; delete custPhotos[oldPhone]; }
+  if(custGroups[oldPhone]){ custGroups[newPhone]=custGroups[oldPhone]; delete custGroups[oldPhone]; }
+  saveData();
+  // Supabase 업데이트
+  try{
+    await fetch(SUPA_URL+'/rest/v1/bookings?phone=eq.'+encodeURIComponent(oldPhone),{
+      method:'PATCH',
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({phone: newPhone})
+    });
+  }catch(e){}
+  alert('연락처가 수정됐어요!');
+  closeModal('custModal');
+  renderCustomers(document.getElementById('custSearch').value);
+}
+
 function renderPhotoGrid(phone){
   const photos=custPhotos[phone]||[];
   const grid=document.getElementById('photoGrid-'+phone);
@@ -2087,7 +2112,13 @@ function openCustModal(phone){
   document.getElementById('custMBody').innerHTML=`
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:13px">
       <div class="cust-av">${c.name[0]}</div>
-      <div><div style="font-weight:500">${c.name}</div><div style="font-size:.72rem;color:var(--sub);margin-top:1px">${c.phone}</div></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:500;margin-bottom:5px">${c.name}</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input id="custPhoneEdit" value="${c.phone}" type="tel" style="flex:1;padding:4px 8px;border:1.5px solid var(--ln);border-radius:6px;font-size:.78rem;font-family:'DM Sans','Noto Sans KR',sans-serif;min-width:0;color:var(--tx)">
+          <button onclick="saveCustPhone('${phone}')" style="padding:4px 10px;border:1.5px solid var(--pk-mid);border-radius:6px;background:var(--pk-light);color:var(--pk-dark);font-size:.72rem;cursor:pointer;white-space:nowrap;font-family:'DM Sans','Noto Sans KR',sans-serif">수정</button>
+        </div>
+      </div>
     </div>
     <div class="msec">그룹 설정</div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
