@@ -134,7 +134,6 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
 .tchip.taken{background:var(--bg2);color:var(--sub2);cursor:default;font-size:.65rem;}
 .tchip.blocked{background:#FFF8EE;color:#C09040;border-color:#E8D090;cursor:not-allowed;font-size:.64rem;}
 .tchip.nfit{background:var(--bg2);color:var(--sub2);cursor:not-allowed;font-size:.66rem;}
-.cal-d.partial-block{background:#FFF8EE!important;border:1.5px solid #E8D090!important;}
 .time-legend{display:flex;gap:8px;margin-top:5px;flex-wrap:wrap;}
 .tleg{display:flex;align-items:center;gap:3px;font-size:.61rem;color:var(--sub);}
 .tleg-sq{width:9px;height:9px;border-radius:2px;flex-shrink:0;}
@@ -1506,7 +1505,7 @@ function renderCal(gridId,titleId,year,month,selDate,clickFn,adminMode=false,sho
     if(past)cls+=' past'; if(isOff)cls+=' offday';
     if(isTd)cls+=' today'; if(isSel)cls+=' sel';
     if(isSun)cls+=' sun'; if(hasBk)cls+=' dot';
-    if(hasBlk&&!hasBk)cls+=' partial-block';
+    // partial-block은 달력에 표시 안 함 (시간 슬롯에서만 노란색으로 표시)
     const click=(!past&&!isOff)?`onclick="${clickFn}('${ds}')"`:'' ;
     html+=`<div class="${cls}" ${click}>${d}</div>`;
   }
