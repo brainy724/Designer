@@ -929,6 +929,9 @@ function setCat(cat){
   renderSvcCards();
 }
 
+// 선택된 옵션 저장 {svcId: optionIndex}
+let selExtraOpts = {};
+
 function renderSvcCards(){
   const filtered = activeCat==='전체'
     ? services
@@ -937,15 +940,40 @@ function renderSvcCards(){
     const isSel = selSvcIds.has(s.id);
     const nm = lang==='en'?(s.name.en||s.name.ko):s.name.ko;
     const dc = lang==='en'?(s.desc.en||s.desc.ko):s.desc.ko;
+    const hasOpts = s.extraOpts && s.extraOpts.length > 0;
+    const selOpt = selExtraOpts[s.id] !== undefined ? selExtraOpts[s.id] : 0;
+    const optHtml = hasOpts && isSel ? `
+      <div onclick="event.stopPropagation()" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--ln)">
+        <div style="font-size:.73rem;color:var(--sub);margin-bottom:5px">기장 선택</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">
+          ${s.extraOpts.map((o,i)=>`
+            <button onclick="event.stopPropagation();selectExtraOpt(${s.id},${i})"
+              style="padding:4px 10px;border-radius:20px;border:1.5px solid ${selOpt===i?'var(--pk)':'var(--ln)'};
+              background:${selOpt===i?'var(--pk)':'var(--w)'};color:${selOpt===i?'var(--w)':'var(--tx)'};
+              font-size:.72rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">
+              ${o.label}${o.price>0?' +'+o.price.toLocaleString()+'원':''}
+            </button>`).join('')}
+        </div>
+      </div>` : '';
+    const displayPrice = hasOpts && isSel
+      ? (s.price + (s.extraOpts[selOpt]?.price||0))
+      : s.price;
     return `<div class="svc-card${isSel?' sel':''}" onclick="toggleSvc(${s.id})">
-      <div>
+      <div style="flex:1">
         <div class="svc-name"><div class="svc-chk-box">✓</div>${nm}<span class="svc-dur-tag">${fmtDur(s.durH)}</span></div>
         ${dc?`<div class="svc-meta-text">${dc}</div>`:''}
+        ${hasOpts&&!isSel?`<div style="font-size:.7rem;color:var(--sub);margin-top:3px">기장 추가금액 선택 가능</div>`:''}
+        ${optHtml}
       </div>
-      <div class="svc-price">${s.price?fmtMoney(s.price):''}</div>
+      <div class="svc-price">${displayPrice?fmtMoney(displayPrice):''}</div>
     </div>`;
   }).join('');
   updateSelSummary();
+}
+
+function selectExtraOpt(svcId, optIdx){
+  selExtraOpts[svcId] = optIdx;
+  renderSvcCards();
 }
 
 function renderSvcList(){
@@ -954,8 +982,13 @@ function renderSvcList(){
 }
 
 function toggleSvc(id){
-  if(selSvcIds.has(id))selSvcIds.delete(id);
-  else selSvcIds.add(id);
+  if(selSvcIds.has(id)){
+    selSvcIds.delete(id);
+    delete selExtraOpts[id];
+  } else {
+    selSvcIds.add(id);
+    selExtraOpts[id] = 0; // 기본 첫번째 옵션
+  }
   renderSvcList();
 }
 
@@ -966,8 +999,17 @@ function updateSelSummary(){
   sumEl.classList.add('show');
   document.getElementById('s1btn').disabled=false;
   const totalDur=selArr.reduce((a,s)=>a+s.durH,0);
-  const totalPrice=selArr.reduce((a,s)=>a+s.price,0);
-  document.getElementById('selTags').innerHTML=selArr.map(s=>`<span class="sel-tag">${lang==='en'?(s.name.en||s.name.ko):s.name.ko}</span>`).join('');
+  const totalPrice=selArr.reduce((a,s)=>{
+    const optIdx=selExtraOpts[s.id]||0;
+    const extra=(s.extraOpts&&s.extraOpts[optIdx])?s.extraOpts[optIdx].price:0;
+    return a+s.price+extra;
+  },0);
+  document.getElementById('selTags').innerHTML=selArr.map(s=>{
+    const optIdx=selExtraOpts[s.id]||0;
+    const opt=s.extraOpts&&s.extraOpts[optIdx];
+    const nm=lang==='en'?(s.name.en||s.name.ko):s.name.ko;
+    return `<span class="sel-tag">${nm}${opt&&opt.label?' ('+opt.label+')':''}</span>`;
+  }).join('');
   document.getElementById('selDurText').textContent=fmtDur(totalDur);
   document.getElementById('selPriceText').textContent=fmtMoney(totalPrice);
 }
@@ -1069,9 +1111,20 @@ async function submitBooking(){
   const note=document.getElementById('fnt').value.trim();
   const selArr=services.filter(s=>selSvcIds.has(s.id));
   const totalDurH=getTotalDurH();
-  const totalPrice=selArr.reduce((a,s)=>a+s.price,0);
+  // 기장 옵션 추가금액 반영
+  const totalPrice=selArr.reduce((a,s)=>{
+    const optIdx=selExtraOpts[s.id]||0;
+    const extra=(s.extraOpts&&s.extraOpts[optIdx])?s.extraOpts[optIdx].price:0;
+    return a+s.price+extra;
+  },0);
   const b={id:bkNextId++,name,phone,
-    services:selArr.map(s=>({id:s.id,name:lang==='en'?(s.name.en||s.name.ko):s.name.ko,price:s.price,durH:s.durH})),
+    services:selArr.map(s=>{
+      const optIdx=selExtraOpts[s.id]||0;
+      const opt=s.extraOpts&&s.extraOpts[optIdx];
+      const extra=opt?opt.price:0;
+      const optLabel=opt&&opt.label?` (${opt.label})`:'';;
+      return {id:s.id,name:(lang==='en'?(s.name.en||s.name.ko):s.name.ko)+optLabel,price:s.price+extra,durH:s.durH};
+    }),
     date:sel.date,startTime:sel.startTime,endTime:sel.endTime,
     totalDurH,totalPrice,note,status:'pending'};
   bookings.push(b);saveData();
