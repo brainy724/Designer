@@ -1248,13 +1248,8 @@ async function doLookup(){
       xhr.ontimeout = ()=>reject(new Error('timeout'));
       xhr.send();
     });
-    // 이름+연락처로 필터링
+    // 이름+연락처로 필터링 (cancelled 제외하지 않고 전체 가져와서 PIN 검증)
     const matched = data.filter(b=>b.name===name && normPhone(b.phone)===normPhone(phone));
-    // 디버그
-    const nameMatch = data.filter(b=>b.name===name);
-    const phoneMatch = data.filter(b=>normPhone(b.phone)===normPhone(phone));
-    const firstMatch = matched[0];
-    alert(`전체:${data.length}건\n이름일치:${nameMatch.length}건\n전화일치:${phoneMatch.length}건\n둘다:${matched.length}건\n\n입력이름:[${name}]\n입력전화:[${normPhone(phone)}]\n입력PIN:[${pin}]\n저장PIN:[${firstMatch?.pin}]`);
     if(matched.length){
       found = matched.map(b=>({
         id:b.id, name:b.name, phone:b.phone,
@@ -1267,12 +1262,10 @@ async function doLookup(){
         const idx=bookings.findIndex(b=>b.id===sb.id);
         if(idx>=0) bookings[idx]=sb; else bookings.push(sb);
       });
-      try{ saveData(); }catch(e){ console.log('saveData 오류:',e); }
+      try{ saveData(); }catch(e){}
     }
     supaOk = true;
-    alert('Supabase 조회 완료. found:'+found.length);
   } catch(e){
-    alert('에러: '+e.message);
     // Supabase 실패 시 localStorage fallback
     loadData();
     found = bookings.filter(b=>b.name===name&&normPhone(b.phone)===normPhone(phone)).sort((a,z)=>z.date.localeCompare(a.date));
@@ -1283,15 +1276,17 @@ async function doLookup(){
     return;
   }
 
-  // PIN 검증
-  const bkPin = found[0]?.pin || '0000';
-  alert(`PIN검증\n입력:[${pin}] 타입:${typeof pin}\n저장:[${bkPin}] 타입:${typeof bkPin}\n일치:${pin===bkPin}`);
+  // PIN 검증 - cancelled 아닌 예약 기준으로
+  const validFound = found.filter(b=>b.status!=='cancelled');
+  const pinRef = validFound.length ? validFound[0] : found[0];
+  const bkPin = pinRef?.pin || '0000';
   if(pin !== bkPin){
     el.innerHTML='';
     alert('비밀번호가 올바르지 않아요. 다시 확인해주세요.');
     return;
   }
-  el.innerHTML=found.map(b=>buildLkCard(b)).join('')||'<div class="lookup-card"><div style="text-align:center;padding:18px;color:var(--sub);font-size:.82rem">조회된 예약이 없습니다.</div></div>';
+  const cards = found.map(b=>buildLkCard(b)).join('');
+  el.innerHTML=cards||'<div class="lookup-card"><div style="text-align:center;padding:18px;color:var(--sub);font-size:.82rem">조회된 예약이 없습니다.</div></div>';
 }
 function sBadge(s){return {pending:'sb-pending',confirmed:'sb-confirmed',done:'sb-done',cancelled:'sb-cancelled',cancel_req:'sb-req',change_req:'sb-chgreq'}[s]||'';}
 function sLabel(s){return {pending:'대기',confirmed:'확정',done:'완료',cancelled:'취소',cancel_req:'취소요청',change_req:'변경요청'}[s]||s;}
