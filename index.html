@@ -1219,6 +1219,8 @@ function resetBooking(){
 // ═══════════════════════════════════════════════════
 // 예약 확인
 // ═══════════════════════════════════════════════════
+function normPhone(p){ return (p||'').replace(/[^0-9]/g,''); }
+
 async function doLookup(){
   const name = document.getElementById('lkName').value.trim();
   const phone = document.getElementById('lkPhone').value.trim();
@@ -1247,7 +1249,7 @@ async function doLookup(){
       xhr.send();
     });
     // 이름+연락처로 필터링
-    const matched = data.filter(b=>b.name===name && b.phone===phone);
+    const matched = data.filter(b=>b.name===name && normPhone(b.phone)===normPhone(phone));
     if(matched.length){
       found = matched.map(b=>({
         id:b.id, name:b.name, phone:b.phone,
@@ -1266,7 +1268,7 @@ async function doLookup(){
   } catch(e){
     // Supabase 실패 시 localStorage fallback
     loadData();
-    found = bookings.filter(b=>b.name===name&&b.phone===phone).sort((a,z)=>z.date.localeCompare(a.date));
+    found = bookings.filter(b=>b.name===name&&normPhone(b.phone)===normPhone(phone)).sort((a,z)=>z.date.localeCompare(a.date));
   }
 
   if(!found.length){
