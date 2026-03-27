@@ -134,6 +134,7 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
 .tchip.taken{background:var(--bg2);color:var(--sub2);cursor:default;font-size:.65rem;}
 .tchip.blocked{background:#FFF8EE;color:#C09040;border-color:#E8D090;cursor:not-allowed;font-size:.64rem;}
 .tchip.nfit{background:var(--bg2);color:var(--sub2);cursor:not-allowed;font-size:.66rem;}
+.cal-d.partial-block{background:#FFF8EE!important;border:1.5px solid #E8D090!important;}
 .time-legend{display:flex;gap:8px;margin-top:5px;flex-wrap:wrap;}
 .tleg{display:flex;align-items:center;gap:3px;font-size:.61rem;color:var(--sub);}
 .tleg-sq{width:9px;height:9px;border-radius:2px;flex-shrink:0;}
@@ -475,9 +476,9 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
           <div class="dur-info" id="durInfo"></div>
           <div class="time-grid" id="tGrid"></div>
           <div class="time-legend">
-            <div class="tleg"><div class="tleg-sq" style="background:var(--tx)"></div><span data-ko="선택" data-en="Selected">선택</span></div>
-            <div class="tleg"><div class="tleg-sq" style="background:var(--bg2);border:1px solid var(--ln2)"></div><span data-ko="소요 구간" data-en="Duration span">소요 구간</span></div>
-            <div class="tleg"><div class="tleg-sq" style="background:var(--bg2)"></div><span data-ko="예약 불가" data-en="Unavailable">예약 불가</span></div>
+            <div class="tleg"><div class="tleg-sq" style="background:var(--pk)"></div><span data-ko="선택" data-en="Selected">선택</span></div>
+            <div class="tleg"><div class="tleg-sq" style="background:var(--pk-light);border:1px solid var(--pk-mid)"></div><span data-ko="소요 구간" data-en="Duration span">소요 구간</span></div>
+            <div class="tleg"><div class="tleg-sq" style="background:var(--bg2);border:1px solid var(--ln)"></div><span data-ko="예약 불가" data-en="Unavailable">예약 불가</span></div>
             <div class="tleg"><div class="tleg-sq" style="background:#FFF8EE;border:1px solid #E8D090"></div><span data-ko="부분 차단" data-en="Partial block">부분 차단</span></div>
           </div>
         </div>
@@ -1101,17 +1102,14 @@ function renderTimeGrid(){
       return tm>sm&&tm<em;
     })();
     let cls='tchip',label=t;
+    const bm=timeToMin(t);
+    const isBlocked=getBlockedRanges(sel.date).some(r=>bm>=r.start&&bm<r.end);
     if(isStart)cls+=' sel-start';
     else if(isSpan)cls+=' sel-span';
+    else if(isBlocked){cls+=' blocked';label=t+'<br><small>'+(lang==='en'?'Blocked':'차단')+'</small>';}
     else if(occupied){cls+=' taken';label=t+'<br><small>'+(lang==='en'?'Booked':'예약됨')+'</small>';}
-    else if(!fits){
-      // check if blocked
-      const bm=timeToMin(t);
-      const isBlocked=getBlockedRanges(sel.date).some(r=>bm>=r.start&&bm<r.end);
-      if(isBlocked){cls+=' blocked';label=t+'<br><small>'+(lang==='en'?'Blocked':'차단')+'</small>';}
-      else{cls+=' nfit';label=t+'<br><small>'+(lang==='en'?'No fit':'시간부족')+'</small>';}
-    }
-    const clickable=!occupied&&fits&&!isStart&&!isSpan;
+    else if(!fits){cls+=' nfit';label=t+'<br><small>'+(lang==='en'?'No fit':'시간부족')+'</small>';}
+    const clickable=!occupied&&fits&&!isStart&&!isSpan&&!isBlocked;
     html+=`<div class="${cls}" ${clickable?`onclick="pickTime('${t}')"`:''}>${label}</div>`;
   });
   document.getElementById('tGrid').innerHTML=html;
@@ -1503,7 +1501,7 @@ function renderCal(gridId,titleId,year,month,selDate,clickFn,adminMode=false,sho
     const isOff=showOff&&(offDays.has(ds)||recurringDows.has(new Date(ds+'T00:00:00').getDay()));
     const isSun=new Date(ds+'T00:00:00').getDay()===0;
     const hasBk=adminMode&&bookedDates.has(ds);
-    const hasBlk=partialDates.has(ds); // 관리자/고객 모두 표시
+    const hasBlk=partialDates.has(ds); // 고객/관리자 모두 표시
     let cls='cal-d';
     if(past)cls+=' past'; if(isOff)cls+=' offday';
     if(isTd)cls+=' today'; if(isSel)cls+=' sel';
