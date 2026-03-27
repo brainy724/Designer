@@ -1228,27 +1228,41 @@ async function doLookup(){
   const el = document.getElementById('lkResults');
   el.innerHTML = '<div style="text-align:center;padding:18px;color:var(--sub);font-size:.8rem">조회 중...</div>';
 
-  // 항상 Supabase 직접 조회 (카카오 인앱브라우저 대응)
+  // Supabase 직접 조회 (카카오 인앱브라우저 대응 - XHR 사용)
   let found = [];
+  let supaOk = false;
   try {
-    const res = await fetch(SUPA_URL+'/rest/v1/bookings?select=*&name=eq.'+encodeURIComponent(name)+'&phone=eq.'+encodeURIComponent(phone)+'&order=date.desc',{
-      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    const data = await new Promise((resolve, reject)=>{
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', SUPA_URL+'/rest/v1/bookings?select=*&order=date.desc', true);
+      xhr.setRequestHeader('apikey', SUPA_KEY);
+      xhr.setRequestHeader('Authorization', 'Bearer '+SUPA_KEY);
+      xhr.timeout = 10000;
+      xhr.onload = ()=>{
+        if(xhr.status===200) resolve(JSON.parse(xhr.responseText));
+        else reject(new Error('status:'+xhr.status));
+      };
+      xhr.onerror = ()=>reject(new Error('network'));
+      xhr.ontimeout = ()=>reject(new Error('timeout'));
+      xhr.send();
     });
-    if(res.ok){
-      const data = await res.json();
-      found = data.map(b=>({
+    // 이름+연락처로 필터링
+    const matched = data.filter(b=>b.name===name && b.phone===phone);
+    if(matched.length){
+      found = matched.map(b=>({
         id:b.id, name:b.name, phone:b.phone,
         services:b.services||[], date:b.date,
         startTime:b.start_time, endTime:b.end_time,
         totalDurH:b.total_dur_h, totalPrice:b.total_price,
         note:b.note||'', status:b.status, pin:b.pin||'0000'
-      }));
+      })).sort((a,z)=>z.date.localeCompare(a.date));
       found.forEach(sb=>{
         const idx=bookings.findIndex(b=>b.id===sb.id);
         if(idx>=0) bookings[idx]=sb; else bookings.push(sb);
       });
       saveData();
     }
+    supaOk = true;
   } catch(e){
     // Supabase 실패 시 localStorage fallback
     loadData();
@@ -1259,13 +1273,15 @@ async function doLookup(){
     el.innerHTML=`<div class="lookup-card"><div style="text-align:center;padding:18px;color:var(--sub);font-size:.82rem">일치하는 예약이 없습니다.</div></div>`;
     return;
   }
-  // PIN 검증 (첫 번째 예약 기준)
+
+  // PIN 검증
   const bkPin = found[0]?.pin || '0000';
   if(pin !== bkPin){
-    el.innerHTML=`<div class="lookup-card"><div style="text-align:center;padding:18px;color:var(--red);font-size:.82rem">🔒 비밀번호가 올바르지 않아요.</div></div>`;
+    el.innerHTML='';
+    alert('비밀번호가 올바르지 않아요. 다시 확인해주세요.');
     return;
   }
-  el.innerHTML=found.map(b=>buildLkCard(b)).join('');
+  el.innerHTML=found.map(b=>buildLkCard(b)).join('')||'<div class="lookup-card"><div style="text-align:center;padding:18px;color:var(--sub);font-size:.82rem">조회된 예약이 없습니다.</div></div>';
 }
 function sBadge(s){return {pending:'sb-pending',confirmed:'sb-confirmed',done:'sb-done',cancelled:'sb-cancelled',cancel_req:'sb-req',change_req:'sb-chgreq'}[s]||'';}
 function sLabel(s){return {pending:'대기',confirmed:'확정',done:'완료',cancelled:'취소',cancel_req:'취소요청',change_req:'변경요청'}[s]||s;}
