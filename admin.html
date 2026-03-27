@@ -591,6 +591,8 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
               <button class="btn btn-dark" style="margin-top:8px" onclick="addBlock2()">추가</button>
             </div>
             <div style="margin-top:10px" id="blockList2"></div>
+            <button class="btn btn-dark" onclick="saveBlocks()" style="margin-top:8px;width:100%">💾 시간대 차단 저장</button>
+            <div id="blockSaveMsg" style="display:none;text-align:center;font-size:.75rem;padding:6px;border-radius:6px;margin-top:6px"></div>
           </div>
         </div>
 
@@ -943,8 +945,8 @@ async function loadAllReviewsFromSupa(){
   return res.map(r => ({
     id: r.id, bookingId: r.booking_id, stars: r.stars,
     text: r.text, visitNum: r.visit_num,
-    svcNames: r.svc_names, reply: r.reply || '',
-    date: r.date, photos: []
+    svcNames: r.svc_names, reply: r.reply||'',
+    date: r.date, photos: r.photos||[], pin: r.pin||''
   }));
 }
 
@@ -1377,13 +1379,21 @@ function submitAdminBooking(){
 }
 
 // ── 고객 관리 ──
-function deleteCustomer(phone, name, e){
+async function deleteCustomer(phone, name, e){
   e.stopPropagation();
-  if(!confirm(`${name} 고객의 모든 예약 데이터를 삭제할까요?\n(복구 불가)`)){ return; }
+  if(!confirm(`${name} 고객의 모든 예약 데이터를 삭제할까요?\n(복구 불가)`)) return;
+  // Supabase에서도 삭제
+  try{
+    await fetch(SUPA_URL+'/rest/v1/bookings?phone=eq.'+encodeURIComponent(phone),{
+      method:'DELETE',
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    });
+  }catch(e){}
   bookings = bookings.filter(b=>b.phone!==phone);
   delete custNotes[phone];
   delete custPhotos[phone];
   saveData();
+  renderDash(); // 대시보드 카운트 즉시 반영
   renderCustomers(document.getElementById('custSearch').value);
 }
 
@@ -1657,21 +1667,20 @@ async function saveOffDays(){
   const msg = document.getElementById('offDaySaveMsg');
   try{
     await saveSettingsToSupa();
-    if(msg){
-      msg.style.display='block';
-      msg.style.background='var(--grn-bg)';
-      msg.style.color='var(--grn)';
-      msg.textContent='✅ 휴무일이 저장됐어요!';
-      setTimeout(()=>msg.style.display='none', 3000);
-    }
+    if(msg){msg.style.display='block';msg.style.background='var(--grn-bg)';msg.style.color='var(--grn)';msg.textContent='✅ 휴무일이 저장됐어요!';setTimeout(()=>msg.style.display='none',3000);}
   }catch(e){
-    if(msg){
-      msg.style.display='block';
-      msg.style.background='var(--red-bg)';
-      msg.style.color='var(--red)';
-      msg.textContent='❌ 저장 실패. 다시 시도해주세요.';
-      setTimeout(()=>msg.style.display='none', 3000);
-    }
+    if(msg){msg.style.display='block';msg.style.background='var(--red-bg)';msg.style.color='var(--red)';msg.textContent='❌ 저장 실패. 다시 시도해주세요.';setTimeout(()=>msg.style.display='none',3000);}
+  }
+}
+
+async function saveBlocks(){
+  saveData();
+  const msg = document.getElementById('blockSaveMsg');
+  try{
+    await saveSettingsToSupa();
+    if(msg){msg.style.display='block';msg.style.background='var(--grn-bg)';msg.style.color='var(--grn)';msg.textContent='✅ 시간대 차단이 저장됐어요!';setTimeout(()=>msg.style.display='none',3000);}
+  }catch(e){
+    if(msg){msg.style.display='block';msg.style.background='var(--red-bg)';msg.style.color='var(--red)';msg.textContent='❌ 저장 실패. 다시 시도해주세요.';setTimeout(()=>msg.style.display='none',3000);}
   }
 }
 

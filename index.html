@@ -818,9 +818,24 @@ async function saveReviewToSupa(rv){
     body: JSON.stringify({
       booking_id: rv.bookingId, stars: rv.stars,
       text: rv.text, visit_num: rv.visitNum,
-      svc_names: rv.svcNames, reply: rv.reply || '', date: rv.date
+      svc_names: rv.svcNames, reply: rv.reply||'',
+      date: rv.date, photos: rv.photos||[], pin: rv.pin||''
     })
   });
+}
+
+async function updateReviewToSupa(rv){
+  await sbFetch(`reviews?id=eq.${rv.id}`, {
+    method:'PATCH', prefer:'return=minimal',
+    body: JSON.stringify({
+      stars: rv.stars, text: rv.text,
+      date: rv.date, photos: rv.photos||[], pin: rv.pin||''
+    })
+  });
+}
+
+async function deleteReviewFromSupa(id){
+  await sbFetch(`reviews?id=eq.${id}`, { method:'DELETE', prefer:'return=minimal' });
 }
 
 // 리뷰 전체 조회
@@ -830,8 +845,8 @@ async function loadReviewsFromSupa(){
   return res.map(r => ({
     id: r.id, bookingId: r.booking_id, stars: r.stars,
     text: r.text, visitNum: r.visit_num,
-    svcNames: r.svc_names, reply: r.reply || '',
-    date: r.date, photos: []
+    svcNames: r.svc_names, reply: r.reply||'',
+    date: r.date, photos: r.photos||[], pin: r.pin||''
   }));
 }
 
@@ -1360,6 +1375,7 @@ function submitReview(){
     if(existing.pin && existing.pin!==pin){alert('비밀번호가 틀렸습니다.');return;}
     existing.stars=rvStars;existing.text=text;existing.photos=photos;existing.date=df(TODAY);existing.pin=pin;
     saveData();
+    updateReviewToSupa(existing).catch(()=>{});
   } else {
     const rv={id:rvNextId++,bookingId:bkId,stars:rvStars,text,photos,date:df(TODAY),visitNum,svcNames,reply:'',pin};
     reviews.push(rv);saveData();saveReviewToSupa(rv).catch(()=>{});
@@ -1383,6 +1399,7 @@ function deleteMyReview(id){
   if(!confirm('리뷰를 삭제할까요?')) return;
   reviews=reviews.filter(r=>r.id!==id);
   saveData();
+  deleteReviewFromSupa(id).catch(()=>{});
   renderReviews();
 }
 
