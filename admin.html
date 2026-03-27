@@ -615,8 +615,10 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
 
           <!-- 그래프 탭 -->
           <div style="display:flex;gap:6px;margin-bottom:10px">
-            <button class="cat-tab on" id="chart-tab-bar" onclick="switchChart('bar')">📊 월별 매출</button>
-            <button class="cat-tab" id="chart-tab-pie" onclick="switchChart('pie')">🥧 구성 비율</button>
+            <button class="cat-tab on" id="chart-tab-income" onclick="switchChart('income')">📈 매출 추이</button>
+            <button class="cat-tab" id="chart-tab-cost" onclick="switchChart('cost')">📉 비용 추이</button>
+            <button class="cat-tab" id="chart-tab-svcpie" onclick="switchChart('svcpie')">🥧 매출 구성</button>
+            <button class="cat-tab" id="chart-tab-costpie" onclick="switchChart('costpie')">🍩 비용 구성</button>
           </div>
           <div class="pc" style="margin-bottom:14px;padding:16px">
             <canvas id="rvChart" style="width:100%;max-height:220px"></canvas>
@@ -694,8 +696,8 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
       <button class="m-tab" onclick="showPanel('newbk',this);mTab(this)"><div class="m-tab-ico">＋</div>등록</button>
       <button class="m-tab" onclick="showPanel('customers',this);mTab(this)"><div class="m-tab-ico">◎</div>고객</button>
       <button class="m-tab" onclick="showPanel('menumanage',this);mTab(this)"><div class="m-tab-ico">✦</div>시술</button>
-      <button class="m-tab" onclick="showPanel('reviews',this);mTab(this)"><div class="m-tab-ico">★</div>리뷰</button>
       <button class="m-tab" onclick="showPanel('revenue',this);mTab(this)"><div class="m-tab-ico">₩</div>매출</button>
+      <button class="m-tab" onclick="showPanel('reviews',this);mTab(this)"><div class="m-tab-ico">★</div>리뷰</button>
       <button class="m-tab" onclick="showPanel('settings',this);mTab(this)"><div class="m-tab-ico">⊙</div>설정</button>
     </div>
   </div>
@@ -1783,7 +1785,7 @@ let rvYear = TODAY.getFullYear();
 let rvMonth = TODAY.getMonth();
 let costEntries = JSON.parse(localStorage.getItem('sera_costs')||'[]');
 let currentChart = null;
-let activeChartType = 'bar';
+let activeChartType = 'income';
 
 function saveCosts(){ localStorage.setItem('sera_costs', JSON.stringify(costEntries)); }
 
@@ -1796,8 +1798,10 @@ function rvNavMonth(d){
 
 function switchChart(type){
   activeChartType = type;
-  document.getElementById('chart-tab-bar').classList.toggle('on', type==='bar');
-  document.getElementById('chart-tab-pie').classList.toggle('on', type==='pie');
+  ['income','cost','svcpie','costpie'].forEach(t=>{
+    const el=document.getElementById('chart-tab-'+t);
+    if(el) el.classList.toggle('on', t===type);
+  });
   renderRevenue();
 }
 
@@ -1855,100 +1859,147 @@ function drawRvChart(type, incomeRows, costRows){
   const canvas = document.getElementById('rvChart');
   if(!canvas) return;
   const ctx = canvas.getContext('2d');
-  canvas.width = canvas.offsetWidth * window.devicePixelRatio || 600;
-  canvas.height = 220 * window.devicePixelRatio || 440;
-  ctx.scale(window.devicePixelRatio||1, window.devicePixelRatio||1);
-  const W = canvas.offsetWidth || 300;
+  const dpr = window.devicePixelRatio||1;
+  canvas.width = (canvas.offsetWidth||300)*dpr;
+  canvas.height = 220*dpr;
+  ctx.scale(dpr,dpr);
+  const W = canvas.offsetWidth||300;
   const H = 220;
   ctx.clearRect(0,0,W,H);
+  const colors=['#C4738A','#9E4D65','#E8A0B0','#D4869A','#B05070','#EDB8C8','#8A3B55','#F0C8D8'];
 
-  if(type==='bar'){
-    // 최근 6개월 막대 그래프
-    const months = [];
-    for(let i=5;i>=0;i--){
-      let m=rvMonth-i, y=rvYear;
-      if(m<0){m+=12;y--;}
-      months.push({y,m,label:`${y}-${pad(m+1)}`});
-    }
-    const incomes = months.map(({label})=>
-      bookings.filter(b=>b.date.startsWith(label)&&b.status==='done').reduce((a,b)=>a+b.totalPrice,0)
-    );
-    const costs = months.map(({label})=>
-      costEntries.filter(e=>e.date.startsWith(label)).reduce((a,e)=>a+e.amount,0)
-    );
-    const maxVal = Math.max(...incomes, ...costs, 1);
-    const barW = (W-60) / (months.length*2+months.length-1) ;
-    const gap = barW/2;
-    const groupW = barW*2+gap;
-    const chartH = H-40;
-    const startX = 45;
+  // 공통: 최근 6개월 레이블
+  const months=[];
+  for(let i=5;i>=0;i--){
+    let m=rvMonth-i,y=rvYear;
+    if(m<0){m+=12;y--;}
+    months.push({y,m,label:`${y}-${pad(m+1)}`});
+  }
 
-    // Y축
-    ctx.strokeStyle='#eee'; ctx.lineWidth=1;
-    [0,.25,.5,.75,1].forEach(r=>{
-      const y=H-20-chartH*r;
-      ctx.beginPath();ctx.moveTo(startX,y);ctx.lineTo(W-5,y);ctx.stroke();
-      ctx.fillStyle='#aaa';ctx.font=`${10*(window.devicePixelRatio||1)>1?10:10}px sans-serif`;
-      ctx.textAlign='right';
-      ctx.fillText(Math.round(maxVal*r/10000)+'만', startX-4, y+4);
+  // 꺾은선 그래프 공통 함수
+  function drawLine(vals, color, maxVal, chartH, startX, label){
+    const stepX=(W-startX-10)/(vals.length-1);
+    ctx.strokeStyle=color; ctx.lineWidth=2.5;
+    ctx.beginPath();
+    vals.forEach((v,i)=>{
+      const x=startX+i*stepX;
+      const y=H-25-(v/maxVal)*chartH;
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
     });
-
-    months.forEach(({label},i)=>{
-      const x = startX + i*(groupW+gap*2);
-      // 수익 막대
-      const ih = (incomes[i]/maxVal)*chartH;
-      ctx.fillStyle='rgba(196,115,138,0.8)';
-      ctx.fillRect(x, H-20-ih, barW, ih);
-      // 비용 막대
-      const ch = (costs[i]/maxVal)*chartH;
-      ctx.fillStyle='rgba(173,53,53,0.6)';
-      ctx.fillRect(x+barW+gap, H-20-ch, barW, ch);
-      // 라벨
-      ctx.fillStyle='#888'; ctx.font='9px sans-serif'; ctx.textAlign='center';
-      ctx.fillText(months[i].label.slice(5)+'월', x+barW, H-6);
-    });
-
-    // 범례
-    ctx.fillStyle='rgba(196,115,138,0.8)';ctx.fillRect(W-80,6,10,10);
-    ctx.fillStyle='#555';ctx.font='10px sans-serif';ctx.textAlign='left';ctx.fillText('수익',W-67,15);
-    ctx.fillStyle='rgba(173,53,53,0.6)';ctx.fillRect(W-40,6,10,10);
-    ctx.fillStyle='#555';ctx.fillText('비용',W-27,15);
-
-  } else {
-    // 파이 차트 - 시술별 매출 구성
-    const svcMap = {};
-    incomeRows.forEach(b=>b.services.forEach(s=>{
-      svcMap[s.name]=(svcMap[s.name]||0)+s.price;
-    }));
-    const entries = Object.entries(svcMap).sort((a,b)=>b[1]-a[1]);
-    const total = entries.reduce((a,[,v])=>a+v,0)||1;
-    const colors=['#C4738A','#9E4D65','#E8A0B0','#D4869A','#B05070','#EDB8C8','#8A3B55','#F0C8D8'];
-    const cx=W/2, cy=H/2-10, r=Math.min(cx,cy)-30;
-    let angle=-Math.PI/2;
-    entries.forEach(([name,val],i)=>{
-      const slice=(val/total)*Math.PI*2;
-      ctx.beginPath();ctx.moveTo(cx,cy);
-      ctx.arc(cx,cy,r,angle,angle+slice);ctx.closePath();
-      ctx.fillStyle=colors[i%colors.length];ctx.fill();
-      ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
-      // 라벨
-      const mid=angle+slice/2;
-      if(slice>0.2){
-        const lx=cx+Math.cos(mid)*(r*0.65);
-        const ly=cy+Math.sin(mid)*(r*0.65);
-        ctx.fillStyle='#fff';ctx.font='bold 10px sans-serif';ctx.textAlign='center';
-        ctx.fillText(Math.round(val/total*100)+'%',lx,ly+4);
+    ctx.stroke();
+    // 점
+    vals.forEach((v,i)=>{
+      const x=startX+i*stepX;
+      const y=H-25-(v/maxVal)*chartH;
+      ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);
+      ctx.fillStyle=color;ctx.fill();
+      // 값 표시
+      if(v>0){
+        ctx.fillStyle='#555';ctx.font='9px sans-serif';ctx.textAlign='center';
+        ctx.fillText((v/10000).toFixed(0)+'만',x,y-7);
       }
-      angle+=slice;
-    });
-    // 범례
-    entries.slice(0,6).forEach(([name,val],i)=>{
-      const lx=10, ly=H-5-(entries.length-i)*14;
-      ctx.fillStyle=colors[i%colors.length];ctx.fillRect(lx,ly-9,10,10);
-      ctx.fillStyle='#555';ctx.font='10px sans-serif';ctx.textAlign='left';
-      ctx.fillText(`${name} ${Math.round(val/total*100)}%`,lx+13,ly);
     });
   }
+
+  // Y축 그리기
+  function drawYAxis(maxVal, chartH, startX){
+    ctx.strokeStyle='#eee';ctx.lineWidth=1;
+    [0,.25,.5,.75,1].forEach(r=>{
+      const y=H-25-chartH*r;
+      ctx.beginPath();ctx.moveTo(startX,y);ctx.lineTo(W-5,y);ctx.stroke();
+      ctx.fillStyle='#bbb';ctx.font='9px sans-serif';ctx.textAlign='right';
+      ctx.fillText(Math.round(maxVal*r/10000)+'만',startX-4,y+3);
+    });
+    // X축 라벨
+    const stepX=(W-startX-10)/(months.length-1);
+    months.forEach(({label},i)=>{
+      ctx.fillStyle='#999';ctx.font='9px sans-serif';ctx.textAlign='center';
+      ctx.fillText(label.slice(5)+'월',startX+i*stepX,H-8);
+    });
+  }
+
+  if(type==='income'){
+    // 매출 꺾은선
+    const vals=months.map(({label})=>
+      bookings.filter(b=>b.date.startsWith(label)&&b.status==='done').reduce((a,b)=>a+b.totalPrice,0)
+    );
+    const maxVal=Math.max(...vals,1);
+    const chartH=H-50;
+    const startX=42;
+    drawYAxis(maxVal,chartH,startX);
+    drawLine(vals,'#C4738A',maxVal,chartH,startX,'매출');
+    // 범례
+    ctx.fillStyle='#C4738A';ctx.fillRect(W-55,6,12,3);
+    ctx.fillStyle='#555';ctx.font='10px sans-serif';ctx.textAlign='left';ctx.fillText('매출',W-40,13);
+
+  } else if(type==='cost'){
+    // 비용 꺾은선
+    const vals=months.map(({label})=>
+      costEntries.filter(e=>e.date.startsWith(label)).reduce((a,e)=>a+e.amount,0)
+    );
+    const maxVal=Math.max(...vals,1);
+    const chartH=H-50;
+    const startX=42;
+    drawYAxis(maxVal,chartH,startX);
+    drawLine(vals,'#AD3535',maxVal,chartH,startX,'비용');
+    ctx.fillStyle='#AD3535';ctx.fillRect(W-55,6,12,3);
+    ctx.fillStyle='#555';ctx.font='10px sans-serif';ctx.textAlign='left';ctx.fillText('비용',W-40,13);
+
+  } else if(type==='svcpie'){
+    // 시술별 매출 파이
+    const svcMap={};
+    incomeRows.forEach(b=>{
+      if(b.services) b.services.forEach(s=>{svcMap[s.name]=(svcMap[s.name]||0)+s.price;});
+    });
+    drawPie(ctx,W,H,Object.entries(svcMap),colors);
+
+  } else if(type==='costpie'){
+    // 비용 항목별 파이
+    const costMap={};
+    costRows.forEach(e=>{
+      const key=e.desc||'기타';
+      costMap[key]=(costMap[key]||0)+e.amount;
+    });
+    const costColors=['#AD3535','#C4534A','#D4756A','#E8998A','#C46060','#8A2525','#F0B0A0','#B07070'];
+    const entries=Object.entries(costMap);
+    if(!entries.length){
+      ctx.fillStyle='#bbb';ctx.font='13px sans-serif';ctx.textAlign='center';
+      ctx.fillText('이번 달 비용 내역이 없습니다',W/2,H/2);
+    } else {
+      drawPie(ctx,W,H,entries,costColors);
+    }
+  }
+}
+
+function drawPie(ctx,W,H,rawEntries,colors){
+  const entries=rawEntries.sort((a,b)=>b[1]-a[1]);
+  const total=entries.reduce((a,[,v])=>a+v,0)||1;
+  const cx=W/2, cy=H/2-8, r=Math.min(cx,cy)-28;
+  let angle=-Math.PI/2;
+  entries.forEach(([name,val],i)=>{
+    const slice=(val/total)*Math.PI*2;
+    ctx.beginPath();ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy,r,angle,angle+slice);ctx.closePath();
+    ctx.fillStyle=colors[i%colors.length];ctx.fill();
+    ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+    if(slice>0.18){
+      const mid=angle+slice/2;
+      const lx=cx+Math.cos(mid)*(r*0.65);
+      const ly=cy+Math.sin(mid)*(r*0.65);
+      ctx.fillStyle='#fff';ctx.font='bold 10px sans-serif';ctx.textAlign='center';
+      ctx.fillText(Math.round(val/total*100)+'%',lx,ly+4);
+    }
+    angle+=slice;
+  });
+  // 범례
+  const legendStart=H-5-(Math.min(entries.length,5))*14;
+  entries.slice(0,5).forEach(([name,val],i)=>{
+    const ly=legendStart+i*14;
+    ctx.fillStyle=colors[i%colors.length];ctx.fillRect(4,ly-9,10,10);
+    ctx.fillStyle='#555';ctx.font='9px sans-serif';ctx.textAlign='left';
+    const shortName=name.length>8?name.slice(0,8)+'..':name;
+    ctx.fillText(`${shortName} ${Math.round(val/total*100)}%`,17,ly);
+  });
 }
 
 function renderLedger(monthStr){
