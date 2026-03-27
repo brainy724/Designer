@@ -1271,7 +1271,10 @@ function sBadge(s){return {pending:'sb-pending',confirmed:'sb-confirmed',done:'s
 function sLabel(s){return {pending:'대기',confirmed:'확정',done:'완료',cancelled:'취소',cancel_req:'취소요청',change_req:'변경요청'}[s]||s;}
 
 function buildLkCard(b){
+  // 취소됨은 표시 안 함
+  if(b.status==='cancelled') return '';
   const canAct=b.status==='pending'||b.status==='confirmed';
+  const isCancelReq=b.status==='cancel_req';
   const svcNames=b.services.map(s=>s.name).join(', ');
   return `<div class="bk-result" id="lkcard-${b.id}">
     <div class="bk-res-top">
@@ -1284,16 +1287,9 @@ function buildLkCard(b){
       ${b.note?`<div class="row"><span class="key">${lang==='en'?'Request':'요청사항'}</span><span>${b.note}</span></div>`:''}
     </div>
     ${canAct?`<div class="action-area">
-      <button class="btn btn-ghost" style="margin:0;font-size:.78rem" onclick="toggleChgForm(${b.id})">${lang==='en'?'📅 Request Date/Time Change':'📅 날짜·시간 변경 요청'}</button>
-      <div class="change-form" id="chgform-${b.id}">
-        <div class="cftitle">${lang==='en'?'Preferred date and time':'변경 원하는 날짜와 시간 입력'}</div>
-        <div class="field"><label>${lang==='en'?'Preferred date':'희망 날짜'}</label><input type="date" id="chgdate-${b.id}" min="${todayStr}" onchange="updateChgTimeSlots(${b.id},${b.id})"></div>
-        <div class="field"><label>${lang==='en'?'Preferred time':'희망 시간'}</label><select id="chgtime-${b.id}"><option value="">${lang==='en'?'Select date first':'날짜 먼저 선택해주세요'}</option></select></div>
-        <div class="field"><label>${lang==='en'?'Reason (optional)':'변경 사유 (선택)'}</label><textarea id="chgreason-${b.id}" style="min-height:46px"></textarea></div>
-        <button class="btn btn-dark" style="margin-top:0" onclick="submitChgReq(${b.id})">${lang==='en'?'Send Request':'변경 요청 보내기'}</button>
-      </div>
       <button class="btn btn-warn" style="margin:0;font-size:.78rem" onclick="submitCancelReq(${b.id})">${lang==='en'?'✕ Cancel Request':'✕ 취소 요청'}</button>
     </div>`:''}
+    ${isCancelReq?`<div style="padding:8px 10px;background:var(--red-bg);border-radius:7px;font-size:.76rem;color:var(--red);margin-top:6px">취소 요청 중이에요. 관리자 승인 후 내역이 사라져요.</div>`:''}
   </div>`;
 }
 function toggleChgForm(id){document.getElementById('chgform-'+id).classList.toggle('show');}
