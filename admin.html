@@ -525,7 +525,11 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
                 <button class="btn-outline" onclick="openAddSvcModal()">+ 시술 추가</button>
               </div>
             </div>
-            <div id="svcEditorList2"></div>
+            <!-- 접힌 목록 -->
+            <div id="svcEditorList2" style="overflow:hidden;transition:max-height .3s ease"></div>
+            <button id="svcToggleBtn" onclick="toggleSvcList()" style="width:100%;margin-top:6px;padding:7px;border:1.5px solid var(--ln);border-radius:7px;background:var(--bg2);font-size:.75rem;cursor:pointer;color:var(--sub);font-family:'DM Sans','Noto Sans KR',sans-serif;display:none">
+              ▼ 전체 보기
+            </button>
           </div>
 
           <!-- 2. 영업시간 -->
@@ -1117,6 +1121,8 @@ function renderMenuManage(){
       <button onclick="deleteSvc(${s.id})" style="padding:7px 12px;border:1.5px solid #DEC0C0;border-radius:7px;background:var(--red-bg);font-size:.78rem;cursor:pointer;color:var(--red);font-family:'DM Sans','Noto Sans KR',sans-serif">삭제</button>
     </div>`).join('')
   : '<div style="text-align:center;padding:24px;color:var(--sub2);font-size:.8rem">시술이 없습니다. + 추가 버튼을 눌러 추가해주세요.</div>';
+  // 렌더 후 접기 적용 (DOM 업데이트 후 실행)
+  setTimeout(applySvcListCollapse, 50);
 }
 
 function saveHours(){
@@ -1702,7 +1708,34 @@ function renderDowButtons(){
 
 // ── 드래그 순서 변경 ──
 let dragSrcId = null;
-let dragLocked = true; // 기본: 순서 고정
+let dragLocked = true;
+let svcListExpanded = false; // 기본: 접혀있음
+
+function toggleSvcList(){
+  svcListExpanded = !svcListExpanded;
+  applySvcListCollapse();
+}
+
+function applySvcListCollapse(){
+  const el = document.getElementById('svcEditorList2');
+  const btn = document.getElementById('svcToggleBtn');
+  if(!el || !btn) return;
+  const ITEM_H = 68; // 항목 1개 높이(px) 근사값
+  const SHOW = 4;    // 기본 표시 개수
+  if(services.length <= SHOW){
+    el.style.maxHeight = '';
+    btn.style.display = 'none';
+    return;
+  }
+  btn.style.display = 'block';
+  if(svcListExpanded){
+    el.style.maxHeight = el.scrollHeight + 'px';
+    btn.textContent = '▲ 접기';
+  } else {
+    el.style.maxHeight = (ITEM_H * SHOW) + 'px';
+    btn.textContent = `▼ 전체 보기 (${services.length}개)`;
+  }
+}
 
 function toggleDragLock(){
   dragLocked = !dragLocked;
