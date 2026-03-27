@@ -612,24 +612,16 @@ let services = [
 ];
 let svcNextId = 7;
 
-let bookings = [
-  {id:1,name:'김지아',phone:'010-1111-2222',services:[{id:2,name:'염색',price:90000,durH:2}],date:todayStr,startTime:'10:00',endTime:'12:00',totalDurH:2,totalPrice:90000,note:'밝은 갈색으로 부탁드려요',status:'pending'},
-  {id:2,name:'이수민',phone:'010-3333-4444',services:[{id:3,name:'펌',price:110000,durH:2.5},{id:1,name:'커트',price:35000,durH:1}],date:todayStr,startTime:'14:00',endTime:'17:30',totalDurH:3.5,totalPrice:145000,note:'',status:'confirmed'},
-  {id:3,name:'박채원',phone:'010-5555-6666',services:[{id:1,name:'커트',price:35000,durH:1}],date:addD(TODAY,1),startTime:'11:00',endTime:'12:00',totalDurH:1,totalPrice:35000,note:'레이어드 컷',status:'confirmed'},
-  {id:4,name:'정미래',phone:'010-9999-0000',services:[{id:1,name:'커트',price:35000,durH:1}],date:addD(TODAY,-5),startTime:'15:00',endTime:'16:00',totalDurH:1,totalPrice:35000,note:'',status:'done'},
-  {id:5,name:'김지아',phone:'010-1111-2222',services:[{id:1,name:'커트',price:35000,durH:1}],date:addD(TODAY,-30),startTime:'10:00',endTime:'11:00',totalDurH:1,totalPrice:35000,note:'',status:'done'},
-];
-let bkNextId = 6;
+let bookings = [];
+let bkNextId = 1;
 
 let offDays = new Set();
 let recurringDows = new Set();
 let dayBlocks = []; // {date, startTime, endTime, reason}
 
 // 리뷰: {id, bookingId, stars, text, date, visitNum, reply, svcNames}
-let reviews = [
-  {id:1,bookingId:4,stars:5,text:'세라쌤 최고예요! 원하는 스타일 딱 나왔어요 :)',date:addD(TODAY,-4),visitNum:1,svcNames:'커트',reply:'감사합니다 😊 다음에 또 봬요!'},
-];
-let rvNextId = 2;
+let reviews = [];
+let rvNextId = 1;
 
 // 고객 메모 & 사진
 let custNotes = {}; // phone -> string
