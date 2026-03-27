@@ -1418,7 +1418,14 @@ async function approveReq(id){
   } else {
     b.date=b.reqDate;b.startTime=b.reqTime;b.endTime=addTimeH(b.reqTime,b.totalDurH);
     b.status='confirmed';delete b.reqDate;delete b.reqTime;delete b.reqReason;
-    saveData();updateBookingStatusSupa(id,'confirmed').catch(()=>{});
+    saveData();
+    // 날짜+시간+상태 모두 Supabase 업데이트
+    try{
+      await sbFetch(`bookings?id=eq.${id}`,{
+        method:'PATCH', prefer:'return=minimal',
+        body:JSON.stringify({status:'confirmed', date:b.date, start_time:b.startTime, end_time:b.endTime})
+      });
+    }catch(e){}
   }
   renderDash();
 }

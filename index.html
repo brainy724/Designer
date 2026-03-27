@@ -1228,30 +1228,15 @@ async function doLookup(){
   const el = document.getElementById('lkResults');
   el.innerHTML = '<div style="text-align:center;padding:18px;color:var(--sub);font-size:.8rem">조회 중...</div>';
 
-  // localStorage에서 먼저 조회
-  loadData();
-  let found = bookings.filter(b=>b.name===name&&b.phone===phone)
-                      .sort((a,z)=>z.date.localeCompare(a.date));
-
-  // Supabase 조회
+  // 항상 Supabase 직접 조회 (카카오 인앱브라우저 대응)
+  let found = [];
   try {
-    const data = await new Promise((resolve, reject)=>{
-      const xhr = new XMLHttpRequest();
-      xhr.open('GET', SUPA_URL+'/rest/v1/bookings?select=*&order=date.desc', true);
-      xhr.setRequestHeader('apikey', SUPA_KEY);
-      xhr.setRequestHeader('Authorization', 'Bearer '+SUPA_KEY);
-      xhr.timeout = 8000;
-      xhr.onload = ()=>{
-        if(xhr.status===200) resolve(JSON.parse(xhr.responseText));
-        else reject(new Error(xhr.status));
-      };
-      xhr.onerror = ()=>reject(new Error('network'));
-      xhr.ontimeout = ()=>reject(new Error('timeout'));
-      xhr.send();
+    const res = await fetch(SUPA_URL+'/rest/v1/bookings?select=*&name=eq.'+encodeURIComponent(name)+'&phone=eq.'+encodeURIComponent(phone)+'&order=date.desc',{
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
     });
-    const supaFound = data.filter(b=>b.name===name && b.phone===phone);
-    if(supaFound.length){
-      found = supaFound.map(b=>({
+    if(res.ok){
+      const data = await res.json();
+      found = data.map(b=>({
         id:b.id, name:b.name, phone:b.phone,
         services:b.services||[], date:b.date,
         startTime:b.start_time, endTime:b.end_time,
@@ -1264,7 +1249,11 @@ async function doLookup(){
       });
       saveData();
     }
-  } catch(e){}
+  } catch(e){
+    // Supabase 실패 시 localStorage fallback
+    loadData();
+    found = bookings.filter(b=>b.name===name&&b.phone===phone).sort((a,z)=>z.date.localeCompare(a.date));
+  }
 
   if(!found.length){
     el.innerHTML=`<div class="lookup-card"><div style="text-align:center;padding:18px;color:var(--sub);font-size:.82rem">일치하는 예약이 없습니다.</div></div>`;
@@ -1298,8 +1287,8 @@ function buildLkCard(b){
       <button class="btn btn-ghost" style="margin:0;font-size:.78rem" onclick="toggleChgForm(${b.id})">${lang==='en'?'📅 Request Date/Time Change':'📅 날짜·시간 변경 요청'}</button>
       <div class="change-form" id="chgform-${b.id}">
         <div class="cftitle">${lang==='en'?'Preferred date and time':'변경 원하는 날짜와 시간 입력'}</div>
-        <div class="field"><label>${lang==='en'?'Preferred date':'희망 날짜'}</label><input type="date" id="chgdate-${b.id}" min="${todayStr}"></div>
-        <div class="field"><label>${lang==='en'?'Preferred time':'희망 시간'}</label><select id="chgtime-${b.id}">${getSlots().map(t=>`<option>${t}</option>`).join('')}</select></div>
+        <div class="field"><label>${lang==='en'?'Preferred date':'희망 날짜'}</label><input type="date" id="chgdate-${b.id}" min="${todayStr}" onchange="updateChgTimeSlots(${b.id},${b.id})"></div>
+        <div class="field"><label>${lang==='en'?'Preferred time':'희망 시간'}</label><select id="chgtime-${b.id}"><option value="">${lang==='en'?'Select date first':'날짜 먼저 선택해주세요'}</option></select></div>
         <div class="field"><label>${lang==='en'?'Reason (optional)':'변경 사유 (선택)'}</label><textarea id="chgreason-${b.id}" style="min-height:46px"></textarea></div>
         <button class="btn btn-dark" style="margin-top:0" onclick="submitChgReq(${b.id})">${lang==='en'?'Send Request':'변경 요청 보내기'}</button>
       </div>
@@ -1308,15 +1297,55 @@ function buildLkCard(b){
   </div>`;
 }
 function toggleChgForm(id){document.getElementById('chgform-'+id).classList.toggle('show');}
+
+function updateChgTimeSlots(bkId, formId){
+  const dateEl = document.getElementById('chgdate-'+formId);
+  const timeEl = document.getElementById('chgtime-'+formId);
+  if(!dateEl||!timeEl) return;
+  const date = dateEl.value;
+  if(!date){ timeEl.innerHTML=`<option value="">${lang==='en'?'Select date first':'날짜 먼저 선택해주세요'}</option>`; return; }
+  // 휴무일 체크
+  const isOff = offDays.has(date)||recurringDows.has(new Date(date+'T00:00:00').getDay());
+  if(isOff){
+    timeEl.innerHTML=`<option value="">${lang==='en'?'Closed day':'휴무일입니다'}</option>`;
+    return;
+  }
+  const b = bookings.find(x=>x.id===bkId);
+  const durH = b ? b.totalDurH : 1;
+  // 가능한 슬롯 필터링 (현재 예약 제외)
+  const slots = getSlots().filter(t=>canStartAt(date, t, durH, bkId));
+  if(!slots.length){
+    timeEl.innerHTML=`<option value="">${lang==='en'?'No available times':'가능한 시간이 없습니다'}</option>`;
+    return;
+  }
+  timeEl.innerHTML = slots.map(t=>`<option value="${t}">${t}</option>`).join('');
+}
+
 function submitChgReq(id){
   const date=document.getElementById('chgdate-'+id).value;
+  const time=document.getElementById('chgtime-'+id).value;
   if(!date){alert(lang==='en'?'Please select a date':'날짜를 선택해주세요.');return;}
+  if(!time){alert(lang==='en'?'Please select a time':'가능한 시간을 선택해주세요.');return;}
+  // 휴무일 체크
+  if(offDays.has(date)||recurringDows.has(new Date(date+'T00:00:00').getDay())){
+    alert(lang==='en'?'That day is closed':'해당 날짜는 휴무일입니다.');return;
+  }
   const b=bookings.find(x=>x.id===id);
+  if(!canStartAt(date,time,b.totalDurH,id)){
+    alert(lang==='en'?'That time is not available':'해당 시간은 예약이 불가합니다.');return;
+  }
   b.status='change_req';b.reqDate=date;
-  b.reqTime=document.getElementById('chgtime-'+id).value;
+  b.reqTime=time;
   b.reqReason=document.getElementById('chgreason-'+id).value;
   saveData();
-  updateBookingStatusSupa(id,'change_req').catch(()=>{});
+  // Supabase에 reqDate, reqTime도 저장
+  try{
+    fetch(SUPA_URL+'/rest/v1/bookings?id=eq.'+id,{
+      method:'PATCH',
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({status:'change_req',req_date:date,req_time:time,req_reason:b.reqReason||''})
+    });
+  }catch(e){}
   document.getElementById('lkcard-'+id).outerHTML=buildLkCard(b);
   alert(lang==='en'?'Change request submitted!':'변경 요청이 접수되었습니다.');
 }
@@ -1331,13 +1360,49 @@ function submitCancelReq(id){
 // ═══════════════════════════════════════════════════
 // 리뷰
 // ═══════════════════════════════════════════════════
-function loadMyBookingsForReview(cb){
+async function loadMyBookingsForReview(cb){
   const name=document.getElementById('rvName').value.trim();
   const phone=document.getElementById('rvPhone').value.trim();
   if(!name||!phone){alert('이름과 연락처를 입력해주세요.');return;}
-  const done=bookings.filter(b=>b.name===name&&b.phone===phone&&b.status==='done');
+  // 항상 Supabase 직접 조회 (카카오 인앱브라우저 대응)
+  let done=[];
+  try{
+    const res=await fetch(SUPA_URL+'/rest/v1/bookings?select=*&name=eq.'+encodeURIComponent(name)+'&phone=eq.'+encodeURIComponent(phone)+'&status=eq.done&order=date.desc',{
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    });
+    if(res.ok){
+      const data=await res.json();
+      done=data.map(b=>({
+        id:b.id,name:b.name,phone:b.phone,
+        services:b.services||[],date:b.date,
+        startTime:b.start_time,endTime:b.end_time,
+        totalDurH:b.total_dur_h,totalPrice:b.total_price,
+        note:b.note||'',status:b.status,pin:b.pin||'0000'
+      }));
+      done.forEach(sb=>{
+        const idx=bookings.findIndex(b=>b.id===sb.id);
+        if(idx>=0) bookings[idx]=sb; else bookings.push(sb);
+      });
+      saveData();
+    }
+  }catch(e){
+    done=bookings.filter(b=>b.name===name&&b.phone===phone&&b.status==='done');
+  }
   if(!done.length){alert('완료된 시술 내역이 없습니다.');return;}
   const sel=document.getElementById('rvBkSelect');
+  // 리뷰도 Supabase에서 최신으로 불러오기
+  try{
+    const rvRes=await fetch(SUPA_URL+'/rest/v1/reviews?select=*&order=created_at.desc',{
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    });
+    if(rvRes.ok){
+      const rvData=await rvRes.json();
+      if(rvData&&rvData.length){
+        reviews=rvData.map(r=>({id:r.id,bookingId:r.booking_id,stars:r.stars,text:r.text,visitNum:r.visit_num,svcNames:r.svc_names,reply:r.reply||'',date:r.date,photos:r.photos||[],pin:r.pin||''}));
+        saveData();
+      }
+    }
+  }catch(e){}
   sel.innerHTML='<option value="">-- 선택 --</option>'+done.map(b=>{
     const svcNames=b.services.map(s=>s.name).join(', ');
     const hasRv=reviews.find(r=>r.bookingId===b.id);
