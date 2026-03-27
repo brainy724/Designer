@@ -1427,32 +1427,19 @@ function rejectReq(id){bookings.find(x=>x.id===id).status='confirmed';renderDash
 function renderDCal(){renderCal('dCalGrid','dashCalTitle',dCalY,dCalM,adminSelDate,'dPickDate',true,true);document.getElementById('dCalPrev').onclick=()=>navCal('d',-1);document.getElementById('dCalNext').onclick=()=>navCal('d',1);}
 function dPickDate(ds){adminSelDate=ds;renderDCal();renderDashList(ds);}
 function renderDashList(ds){
-  const now=TODAY;
-  const calMonthStr=`${dCalY}-${pad(dCalM+1)}`;
-  const isCurrentMonth=dCalY===now.getFullYear()&&dCalM===now.getMonth();
   const labelEl=document.getElementById('dashListLabel');
   const countEl=document.getElementById('dashListCount');
   const listEl=document.getElementById('dashBkList');
 
-  if(isCurrentMonth){
-    labelEl.textContent=ds===todayStr?'오늘 예약':fmtKo(ds);
-    const list=bookings.filter(b=>b.date===ds).sort((a,z)=>a.startTime.localeCompare(z.startTime));
-    const confirmed=list.filter(b=>b.status==='done'||b.status==='confirmed');
-    const rev=confirmed.reduce((a,b)=>a+b.totalPrice,0);
-    countEl.innerHTML=confirmed.length
-      ? `<span style="font-weight:700;color:var(--tx)">${confirmed.length}건</span>${rev>0?` <span style="font-family:'DM Serif Display',serif;font-weight:700;color:var(--pk);font-size:.85rem">${fmtMoney(rev)}</span>`:''}`
-      : '';
-    listEl.innerHTML=list.length?list.map(b=>bkItemHTML(b)).join(''):'<div class="empty-msg">예약이 없습니다</div>';
-  } else {
-    labelEl.textContent=`${dCalY}년 ${dCalM+1}월 전체`;
-    const list=bookings.filter(b=>b.date.startsWith(calMonthStr)&&b.status!=='cancelled').sort((a,z)=>a.date.localeCompare(z.date)||a.startTime.localeCompare(z.startTime));
-    const confirmed=list.filter(b=>b.status==='done'||b.status==='confirmed');
-    const rev=confirmed.reduce((a,b)=>a+b.totalPrice,0);
-    countEl.innerHTML=confirmed.length
-      ? `<span style="font-weight:700;color:var(--tx)">${confirmed.length}건</span>${rev>0?` <span style="font-family:'DM Serif Display',serif;font-weight:700;color:var(--pk);font-size:.85rem">${fmtMoney(rev)}</span>`:''}`
-      : '';
-    listEl.innerHTML=list.length?list.map(b=>bkItemHTML(b)).join(''):'<div class="empty-msg">해당 월 예약이 없습니다</div>';
-  }
+  // 항상 선택된 날짜 기준
+  labelEl.textContent=ds===todayStr?'오늘 예약':fmtKo(ds);
+  const list=bookings.filter(b=>b.date===ds&&b.status!=='cancelled').sort((a,z)=>a.startTime.localeCompare(z.startTime));
+  // 취소 제외 전체 건수 및 금액 (pending 포함)
+  const rev=list.reduce((a,b)=>a+b.totalPrice,0);
+  countEl.innerHTML=list.length
+    ? `<span style="font-weight:700;color:var(--tx)">${list.length}건</span>${rev>0?` <span style="font-family:'DM Serif Display',serif;font-weight:700;color:var(--pk);font-size:.85rem">${fmtMoney(rev)}</span>`:''}`
+    : '';
+  listEl.innerHTML=list.length?list.map(b=>bkItemHTML(b)).join(''):'<div class="empty-msg">예약이 없습니다</div>';
 }
 
 function renderCCal(){renderCal('cCalGrid','calCalTitle',cCalY,cCalM,cCalSelDate,'cPickDate',true,true);document.getElementById('cCalPrev').onclick=()=>navCal('c',-1);document.getElementById('cCalNext').onclick=()=>navCal('c',1);}
