@@ -675,6 +675,65 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
         <!-- 설정 -->
         <div class="apanel" id="panel-settings">
           <div class="dash-head"><div class="dash-title">설정</div></div>
+
+          <!-- 데이터 백업 -->
+          <div class="pc" style="margin-bottom:12px">
+            <div class="pc-title">💾 데이터 백업</div>
+            <div style="font-size:.74rem;color:var(--sub);margin-bottom:12px">백업할 항목을 선택하고 다운로드하세요.</div>
+
+            <!-- 백업 옵션 체크박스 -->
+            <div style="background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:12px;border:1px solid var(--ln)">
+              <div style="font-size:.76rem;font-weight:500;margin-bottom:8px">📋 백업 항목 선택</div>
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.78rem">
+                  <input type="checkbox" id="bk-opt-bookings" checked style="width:15px;height:15px;accent-color:var(--pk)">
+                  <span>예약 데이터 (CSV)</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.78rem">
+                  <input type="checkbox" id="bk-opt-reviews" checked style="width:15px;height:15px;accent-color:var(--pk)">
+                  <span>리뷰 데이터 (CSV)</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.78rem">
+                  <input type="checkbox" id="bk-opt-settings" checked style="width:15px;height:15px;accent-color:var(--pk)">
+                  <span>설정 데이터 (시술메뉴, 영업시간, 휴무일)</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.78rem">
+                  <input type="checkbox" id="bk-opt-costs" checked style="width:15px;height:15px;accent-color:var(--pk)">
+                  <span>매출/비용 가계부</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.78rem">
+                  <input type="checkbox" id="bk-opt-photos" checked style="width:15px;height:15px;accent-color:var(--pk)">
+                  <span>고객 사진 (날짜_이름_시술 형식)</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- 백업 주기 설정 -->
+            <div style="background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:12px;border:1px solid var(--ln)">
+              <div style="font-size:.76rem;font-weight:500;margin-bottom:8px">🔔 자동 백업 알림 주기</div>
+              <select id="bk-interval" style="width:100%;padding:7px 10px;border:1.5px solid var(--ln);border-radius:7px;font-size:.78rem;font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--w)" onchange="saveBkInterval()">
+                <option value="3">3일마다</option>
+                <option value="7" selected>7일마다</option>
+                <option value="14">14일마다</option>
+                <option value="30">한 달마다</option>
+                <option value="0">알림 끄기</option>
+              </select>
+              <div id="bk-last-date" style="font-size:.7rem;color:var(--sub);margin-top:6px"></div>
+            </div>
+
+            <!-- 다운로드 버튼들 -->
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <button class="btn btn-dark" onclick="backupSelected()" style="display:flex;align-items:center;justify-content:center;gap:6px">
+                💾 선택 항목 백업
+              </button>
+              <div style="display:flex;gap:6px">
+                <button onclick="backupBookings()" style="flex:1;padding:8px;border:1.5px solid var(--ln);border-radius:7px;background:var(--bg2);font-size:.73rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">📋 예약만</button>
+                <button onclick="backupReviews()" style="flex:1;padding:8px;border:1.5px solid var(--ln);border-radius:7px;background:var(--bg2);font-size:.73rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">⭐ 리뷰만</button>
+                <button onclick="backupAll()" style="flex:1;padding:8px;border:1.5px solid var(--pk-mid);border-radius:7px;background:var(--pk-light);color:var(--pk-dark);font-size:.73rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">📦 전체</button>
+              </div>
+            </div>
+            <div id="backupMsg" style="display:none;margin-top:8px;padding:8px;border-radius:7px;font-size:.75rem;text-align:center"></div>
+          </div>
           <div class="pc" style="margin-bottom:12px">
             <div class="pc-title">알림 설정</div>
             <div class="tog-row"><div><div class="tog-l">예약 완료 문자 발송</div><div class="tog-desc">고객 예약 시 자동 안내</div></div><button class="tog on" onclick="this.classList.toggle('on')"></button></div>
@@ -1100,6 +1159,8 @@ async function initAdmin(){
   renderMenuManage();
   // 현재 설정 Supabase에 자동 저장 (카톡 인앱브라우저 대응)
   saveSettingsToSupa().catch(()=>{});
+  // 7일 이상 백업 안 했으면 알림
+  checkAutoBackupReminder();
 }
 
 function renderMenuManage(){
@@ -1185,6 +1246,7 @@ function showPanel(id,btn){
   if(id==='menumanage'){renderMenuManage();renderOffCal();populateBlockSelects();}
   if(id==='reviews')renderAdminReviews();
   if(id==='revenue'){rvYear=TODAY.getFullYear();rvMonth=TODAY.getMonth();renderRevenue();}
+  if(id==='settings') loadBkSettings();
   if(id==='offdays')renderOffCal();
   if(id==='settings'){
     document.getElementById('set-open').value=OPEN;
@@ -1966,6 +2028,246 @@ function goToBooking(){
   const base = window.location.href.replace('admin.html','').replace(/\/$/, '');
   const url = base ? base + '/index.html' : 'index.html';
   window.open(url, '_blank');
+}
+
+// ── 데이터 백업 ──
+function downloadFile(filename, content, type='text/csv;charset=utf-8;'){
+  const blob = new Blob(['\uFEFF'+content], {type});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function showBackupMsg(text, ok=true){
+  const el = document.getElementById('backupMsg');
+  if(!el) return;
+  el.style.display='block';
+  el.style.background = ok?'var(--grn-bg)':'var(--red-bg)';
+  el.style.color = ok?'var(--grn)':'var(--red)';
+  el.textContent = text;
+  setTimeout(()=>el.style.display='none', 3000);
+}
+
+async function backupBookings(){
+  // Supabase에서 최신 데이터 가져오기
+  let data = bookings;
+  try{
+    const res = await fetch(SUPA_URL+'/rest/v1/bookings?select=*&order=date.desc',{
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    });
+    if(res.ok) data = await res.json();
+  }catch(e){}
+
+  const headers = ['ID','이름','연락처','날짜','시작시간','종료시간','시술','합계금액','메모','상태','등록일'];
+  const rows = data.map(b=>([
+    b.id, b.name, b.phone, b.date,
+    b.start_time||b.startTime, b.end_time||b.endTime,
+    (b.services||[]).map(s=>s.name).join(' / '),
+    b.total_price||b.totalPrice,
+    (b.note||'').replace(/,/g,''),
+    b.status,
+    (b.created_at||'').slice(0,10)
+  ].map(v=>`"${v||''}"`).join(',')));
+
+  const csv = [headers.join(','), ...rows].join('\n');
+  const date = new Date().toISOString().slice(0,10);
+  downloadFile(`sera_예약_${date}.csv`, csv);
+  showBackupMsg(`✅ 예약 ${data.length}건 다운로드 완료!`);
+}
+
+async function backupReviews(){
+  let data = reviews;
+  try{
+    const res = await fetch(SUPA_URL+'/rest/v1/reviews?select=*&order=created_at.desc',{
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    });
+    if(res.ok) data = await res.json();
+  }catch(e){}
+
+  const headers = ['ID','시술','별점','리뷰내용','방문횟수','날짜','디자이너댓글'];
+  const rows = data.map(r=>([
+    r.id, r.svc_names||r.svcNames, r.stars,
+    (r.text||'').replace(/,/g,''),
+    r.visit_num||r.visitNum, r.date,
+    (r.reply||'').replace(/,/g,'')
+  ].map(v=>`"${v||''}"`).join(',')));
+
+  const csv = [headers.join(','), ...rows].join('\n');
+  const date = new Date().toISOString().slice(0,10);
+  downloadFile(`sera_리뷰_${date}.csv`, csv);
+  showBackupMsg(`✅ 리뷰 ${data.length}건 다운로드 완료!`);
+}
+
+async function backupAll(){
+  showBackupMsg('⏳ 백업 준비 중...', true);
+  let bkData = bookings, rvData = reviews;
+  try{
+    const [b, r] = await Promise.all([
+      fetch(SUPA_URL+'/rest/v1/bookings?select=*',{headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}}).then(r=>r.json()),
+      fetch(SUPA_URL+'/rest/v1/reviews?select=*',{headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}}).then(r=>r.json())
+    ]);
+    bkData = b; rvData = r;
+  }catch(e){}
+
+  const today = new Date().toISOString().slice(0,10);
+
+  // 1. 전체 JSON 백업
+  const json = JSON.stringify({
+    backup_date: today,
+    bookings: bkData,
+    reviews: rvData,
+    services, offDays:[...offDays],
+    recurringDows:[...recurringDows], dayBlocks,
+    costEntries
+  }, null, 2);
+  downloadFile(`sera_전체백업_${today}.json`, json, 'application/json');
+
+  // 2. 고객 사진 개별 다운로드 (날짜_고객이름_시술이름)
+  let photoCount = 0;
+  await new Promise(resolve=>{
+    const entries = Object.entries(custPhotos);
+    if(!entries.length){ resolve(); return; }
+    let done = 0;
+    entries.forEach(([phone, photos])=>{
+      if(!photos||!photos.length){ done++; if(done===entries.length) resolve(); return; }
+      // 해당 고객 예약에서 가장 최근 시술명 찾기
+      const cBks = bkData.filter(b=>(b.phone===phone||b.phone===phone)&&b.status==='done');
+      const custName = custNotes[phone]?.name || (cBks[0]?.name) ||
+        bookings.find(b=>b.phone===phone)?.name || phone;
+      const svcName = cBks[0]?.services?.[0]?.name || '시술';
+      photos.forEach((dataUrl, idx)=>{
+        try{
+          const ext = dataUrl.split(';')[0].split('/')[1]||'jpg';
+          const fname = `${today}_${custName}_${svcName}_${idx+1}.${ext}`;
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = fname;
+          document.body.appendChild(a);
+          setTimeout(()=>{ a.click(); document.body.removeChild(a); }, idx * 300);
+          photoCount++;
+        }catch(e){}
+      });
+      done++;
+      if(done===entries.length) setTimeout(resolve, photos.length*300+500);
+    });
+  });
+
+  localStorage.setItem('sera_lastBackup', today);
+  showBackupMsg(`✅ 전체 백업 완료! (예약 ${bkData.length}건, 리뷰 ${rvData.length}건, 사진 ${photoCount}장)`);
+}
+
+function saveBkInterval(){
+  const val = document.getElementById('bk-interval').value;
+  localStorage.setItem('sera_bkInterval', val);
+}
+
+function loadBkSettings(){
+  // 주기 복원
+  const interval = localStorage.getItem('sera_bkInterval')||'7';
+  const sel = document.getElementById('bk-interval');
+  if(sel) sel.value = interval;
+  // 마지막 백업일 표시
+  const last = localStorage.getItem('sera_lastBackup');
+  const el = document.getElementById('bk-last-date');
+  if(el) el.textContent = last ? `마지막 백업: ${last}` : '아직 백업한 적 없어요';
+}
+
+async function backupSelected(){
+  const optBookings = document.getElementById('bk-opt-bookings')?.checked;
+  const optReviews  = document.getElementById('bk-opt-reviews')?.checked;
+  const optSettings = document.getElementById('bk-opt-settings')?.checked;
+  const optCosts    = document.getElementById('bk-opt-costs')?.checked;
+  const optPhotos   = document.getElementById('bk-opt-photos')?.checked;
+
+  if(!optBookings&&!optReviews&&!optSettings&&!optCosts&&!optPhotos){
+    alert('백업할 항목을 하나 이상 선택해주세요.');return;
+  }
+
+  showBackupMsg('⏳ 백업 준비 중...', true);
+  const today = new Date().toISOString().slice(0,10);
+  let bkData=bookings, rvData=reviews;
+
+  try{
+    const reqs=[];
+    if(optBookings||optSettings) reqs.push(fetch(SUPA_URL+'/rest/v1/bookings?select=*',{headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}}).then(r=>r.json()));
+    else reqs.push(Promise.resolve(null));
+    if(optReviews) reqs.push(fetch(SUPA_URL+'/rest/v1/reviews?select=*',{headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}}).then(r=>r.json()));
+    else reqs.push(Promise.resolve(null));
+    const [b,r] = await Promise.all(reqs);
+    if(b) bkData=b;
+    if(r) rvData=r;
+  }catch(e){}
+
+  let total='';
+
+  // 예약 CSV
+  if(optBookings){
+    const headers=['ID','이름','연락처','날짜','시작','종료','시술','금액','메모','상태'];
+    const rows=bkData.map(b=>[b.id,b.name,b.phone,b.date,b.start_time||b.startTime,b.end_time||b.endTime,(b.services||[]).map(s=>s.name).join('/'),b.total_price||b.totalPrice,(b.note||'').replace(/,/g,''),b.status].map(v=>`"${v||''}"`).join(','));
+    downloadFile(`sera_예약_${today}.csv`,[headers.join(','),...rows].join('\n'));
+    total+=` 예약${bkData.length}건`;
+  }
+
+  // 리뷰 CSV
+  if(optReviews){
+    const headers=['ID','시술','별점','내용','방문','날짜','댓글'];
+    const rows=rvData.map(r=>[r.id,r.svc_names||r.svcNames,r.stars,(r.text||'').replace(/,/g,''),r.visit_num||r.visitNum,r.date,(r.reply||'').replace(/,/g,'')].map(v=>`"${v||''}"`).join(','));
+    downloadFile(`sera_리뷰_${today}.csv`,[headers.join(','),...rows].join('\n'));
+    total+=` 리뷰${rvData.length}건`;
+  }
+
+  // JSON (설정+비용)
+  if(optSettings||optCosts){
+    const payload={backup_date:today};
+    if(optSettings) Object.assign(payload,{services,offDays:[...offDays],recurringDows:[...recurringDows],dayBlocks});
+    if(optCosts) payload.costEntries=costEntries;
+    downloadFile(`sera_설정_${today}.json`,JSON.stringify(payload,null,2),'application/json');
+    total+=' 설정';
+  }
+
+  // 고객 사진
+  if(optPhotos){
+    let photoCount=0;
+    Object.entries(custPhotos).forEach(([phone,photos])=>{
+      if(!photos||!photos.length) return;
+      const cBk=bkData.find(b=>(b.phone===phone||b.phone===phone)&&(b.status==='done'||b.status==='confirmed'))||bkData.find(b=>b.phone===phone);
+      const custName=cBk?.name||bookings.find(b=>b.phone===phone)?.name||phone;
+      const svcName=cBk?.services?.[0]?.name||'시술';
+      photos.forEach((dataUrl,idx)=>{
+        try{
+          const ext=dataUrl.split(';')[0].split('/')[1]||'jpg';
+          const a=document.createElement('a');
+          a.href=dataUrl;a.download=`${today}_${custName}_${svcName}_${idx+1}.${ext}`;
+          document.body.appendChild(a);
+          setTimeout(()=>{a.click();document.body.removeChild(a);},idx*300);
+          photoCount++;
+        }catch(e){}
+      });
+    });
+    total+=` 사진${photoCount}장`;
+  }
+
+  localStorage.setItem('sera_lastBackup',today);
+  loadBkSettings();
+  showBackupMsg(`✅ 백업 완료!${total}`);
+}
+
+// 자동 백업 알림 (설정 주기 기반)
+function checkAutoBackupReminder(){
+  const interval = parseInt(localStorage.getItem('sera_bkInterval')||'7');
+  if(interval===0) return;
+  const last = localStorage.getItem('sera_lastBackup');
+  const daysSince = last ? Math.floor((Date.now()-new Date(last).getTime())/86400000) : 999;
+  if(daysSince >= interval){
+    setTimeout(()=>{
+      if(confirm(`마지막 백업으로부터 ${daysSince}일이 지났어요!\n지금 백업할까요?`)){
+        showPanel('settings', null);
+        setTimeout(backupSelected, 500);
+      }
+    }, 2000);
+  }
 }
 
 // ── 매출·비용 분석 ──
