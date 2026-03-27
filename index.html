@@ -491,7 +491,7 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
         <div class="sh-sub" data-ko="예약 확인에 사용되니 정확히 입력해주세요" data-en="Please enter accurate info for booking lookup">예약 확인에 사용되니 정확히 입력해주세요</div>
       </div>
       <div class="field"><label data-ko="이름 *" data-en="Name *">이름 *</label><input id="fn" data-ko-ph="홍길동" data-en-ph="Full Name" placeholder="홍길동" oninput="ckS3()"></div>
-      <div class="field"><label data-ko="연락처 *" data-en="Phone *">연락처 *</label><input id="fp" type="tel" data-ko-ph="010-0000-0000" data-en-ph="Phone number" placeholder="010-0000-0000" oninput="ckS3()"></div>
+      <div class="field"><label data-ko="연락처 *" data-en="Phone *">연락처 *</label><input id="fp" type="tel" data-ko-ph="010********" data-en-ph="010********" placeholder="010********" oninput="ckS3()"></div>
       <div class="field">
         <label>예약 비밀번호 * <span style="font-size:.7rem;color:var(--sub);font-weight:400">(숫자 4자리 — 예약 확인 시 필요해요)</span></label>
         <input id="fbk-pin" type="password" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="숫자 4자리" oninput="ckS3()" style="letter-spacing:6px;font-size:1.1rem">
@@ -502,7 +502,7 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
       <div style="background:var(--bg2);border-radius:var(--r);padding:13px 14px;margin-bottom:12px;border:1.5px solid var(--ln);">
         <div style="font-size:.72rem;color:var(--sub);line-height:1.8;margin-bottom:10px;">
           <strong style="color:var(--tx);font-size:.76rem;" data-ko="개인정보 수집 및 이용 안내" data-en="Privacy Policy Notice">개인정보 수집 및 이용 안내</strong><br>
-          <span data-ko="수집 항목: 이름, 연락처" data-en="Collected info: Name, Phone number">수집 항목: 이름, 연락처</span><br>
+          <span data-ko="수집 항목: 이름, 연락처" data-en="Collected info: Name, 010********">수집 항목: 이름, 연락처</span><br>
           <span data-ko="수집 목적: 예약 확인 및 시술 기록 관리" data-en="Purpose: Booking confirmation and service record management">수집 목적: 예약 확인 및 시술 기록 관리</span><br>
           <span data-ko="보유 기간: 서비스 이용 기간 동안 보관" data-en="Retention: Retained during service use">보유 기간: 서비스 이용 기간 동안 보관</span><br>
           <span data-ko="입력하신 정보는 예약 및 포트폴리오 관리 목적으로만 사용되며, 제3자에게 제공되지 않습니다." data-en="Your information is used only for booking and portfolio management, and will not be shared with third parties.">입력하신 정보는 예약 및 포트폴리오 관리 목적으로만 사용되며, 제3자에게 제공되지 않습니다.</span>
@@ -549,7 +549,7 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
       <div class="lookup-title" data-ko="예약 확인" data-en="Booking Lookup">예약 확인</div>
       <div class="lookup-sub" data-ko="이름과 연락처를 입력하면 예약 내역을 조회할 수 있어요" data-en="Enter your name and phone number to look up your booking">이름과 연락처를 입력하면 예약 내역을 조회할 수 있어요</div>
       <div class="field"><label data-ko="이름" data-en="Name">이름</label><input id="lkName" data-ko-ph="홍길동" data-en-ph="Full Name" placeholder="홍길동"></div>
-      <div class="field"><label data-ko="연락처" data-en="Phone">연락처</label><input id="lkPhone" type="tel" data-ko-ph="010-0000-0000" data-en-ph="Phone number" placeholder="010-0000-0000"></div>
+      <div class="field"><label data-ko="연락처" data-en="010********">연락처</label><input id="lkPhone" type="tel" data-ko-ph="010********" data-en-ph="010********" placeholder="010********"></div>
       <div class="field"><label>예약 비밀번호</label><input id="lkPin" type="password" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="숫자 4자리" style="letter-spacing:6px;font-size:1.1rem"></div>
       <button class="btn btn-dark" onclick="doLookup()" data-ko="조회하기" data-en="Search">조회하기</button>
     </div>
@@ -568,7 +568,7 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
       <div class="rv-write-box">
         <div class="rv-write-title" data-ko="리뷰 작성" data-en="Write a Review">리뷰 작성</div>
         <div class="field"><label data-ko="이름" data-en="Name">이름</label><input id="rvName" data-ko-ph="홍길동" data-en-ph="Your name" placeholder="홍길동"></div>
-        <div class="field"><label data-ko="연락처" data-en="Phone">연락처</label><input id="rvPhone" type="tel" data-ko-ph="010-0000-0000" data-en-ph="Phone" placeholder="010-0000-0000"></div>
+        <div class="field"><label data-ko="연락처" data-en="010********">연락처</label><input id="rvPhone" type="tel" data-ko-ph="010********" data-en-ph="010********" placeholder="010********"></div>
         <div class="field">
           <label>리뷰 비밀번호 <span style="font-size:.7rem;color:var(--sub);font-weight:400">(4자리 숫자 — 수정/삭제 시 필요해요)</span></label>
           <input id="rvPin" type="password" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="숫자 4자리" style="letter-spacing:6px;font-size:1.1rem">
