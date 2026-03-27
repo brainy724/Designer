@@ -1283,6 +1283,7 @@ async function doLookup(){
 
   // PIN 검증
   const bkPin = found[0]?.pin || '0000';
+  alert(`PIN검증\n입력:[${pin}] 타입:${typeof pin}\n저장:[${bkPin}] 타입:${typeof bkPin}\n일치:${pin===bkPin}`);
   if(pin !== bkPin){
     el.innerHTML='';
     alert('비밀번호가 올바르지 않아요. 다시 확인해주세요.');
