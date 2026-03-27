@@ -1272,6 +1272,7 @@ async function doLookup(){
     supaOk = true;
     alert('Supabase 조회 완료. found:'+found.length);
   } catch(e){
+    alert('에러: '+e.message);
     // Supabase 실패 시 localStorage fallback
     loadData();
     found = bookings.filter(b=>b.name===name&&normPhone(b.phone)===normPhone(phone)).sort((a,z)=>z.date.localeCompare(a.date));
