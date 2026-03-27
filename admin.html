@@ -787,7 +787,7 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
   <div class="modal-card">
     <div class="modal-head"><div class="modal-title">그룹 관리</div><button class="modal-close" onclick="closeModal('groupMgrModal')">✕</button></div>
     <div class="modal-body">
-      <div style="font-size:.74rem;color:var(--sub);margin-bottom:12px">그룹을 수정하거나 삭제할 수 있어요. 삭제하면 해당 그룹 고객들의 그룹이 해제돼요.</div>
+      <div style="font-size:.78rem;color:var(--tx);margin-bottom:12px;padding:10px;background:var(--bg2);border-radius:7px">그룹을 수정하거나 삭제할 수 있어요. 삭제하면 해당 그룹 고객들의 그룹이 해제돼요.</div>
       <div id="groupMgrList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
       <!-- 새 그룹 추가 -->
       <div class="msec">새 그룹 추가</div>
@@ -1711,7 +1711,8 @@ function saveCustomGroups(){
 }
 
 function getAllGroups(){
-  return [...new Set([...DEFAULT_GROUPS.slice(1), ...customGroups])];
+  const hidden = JSON.parse(localStorage.getItem('sera_hiddenGroups')||'[]');
+  return [...new Set([...DEFAULT_GROUPS.slice(1), ...customGroups])].filter(g=>!hidden.includes(g));
 }
 
 function openGroupManager(){
@@ -1723,16 +1724,60 @@ function renderGroupMgrList(){
   const groups = getAllGroups();
   const el = document.getElementById('groupMgrList');
   if(!el) return;
-  el.innerHTML = groups.map(g=>{
+  if(!groups.length){
+    el.innerHTML='<div style="text-align:center;padding:16px;color:var(--sub);font-size:.8rem">그룹이 없어요. 아래에서 추가해주세요.</div>';
+    return;
+  }
+  el.innerHTML = groups.map((g,idx)=>{
     const count = Object.values(custGroups).filter(v=>v===g).length;
-    const isDefault = DEFAULT_GROUPS.includes(g);
-    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1.5px solid var(--ln);border-radius:8px;background:var(--bg)">
-      <input id="grpEdit-${g}" value="${g}" style="flex:1;padding:5px 8px;border:1.5px solid var(--ln);border-radius:6px;font-size:.8rem;font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--w)" ${isDefault?'placeholder="기본 그룹"':''}>
-      <span style="font-size:.7rem;color:var(--sub);white-space:nowrap">${count}명</span>
-      <button onclick="renameGroup('${g}')" style="padding:5px 10px;border:1.5px solid var(--ln);border-radius:6px;background:var(--bg2);font-size:.72rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">수정</button>
-      <button onclick="deleteGroup('${g}')" style="padding:5px 10px;border:1.5px solid #DEC0C0;border-radius:6px;background:var(--red-bg);color:var(--red);font-size:.72rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">삭제</button>
+    return `<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid var(--ln);border-radius:8px;background:var(--w)">
+      <input data-idx="${idx}" value="${g}" style="flex:1;padding:6px 9px;border:1.5px solid var(--ln);border-radius:6px;font-size:.8rem;font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx)" id="grpEdit-${idx}">
+      <span style="font-size:.72rem;color:var(--sub2);white-space:nowrap;background:var(--bg2);padding:2px 7px;border-radius:10px">${count}명</span>
+      <button onclick="renameGroupByIdx(${idx})" style="padding:6px 11px;border:1.5px solid var(--ln);border-radius:6px;background:var(--bg2);font-size:.73rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif;color:var(--tx)">수정</button>
+      <button onclick="deleteGroupByIdx(${idx})" style="padding:6px 11px;border:1.5px solid #C4738A;border-radius:6px;background:#F9EEF1;color:#9E4D65;font-size:.73rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif;font-weight:500">삭제</button>
     </div>`;
   }).join('');
+}
+
+function renameGroupByIdx(idx){
+  const groups = getAllGroups();
+  const oldName = groups[idx];
+  const input = document.getElementById('grpEdit-'+idx);
+  if(!input) return;
+  const newName = input.value.trim();
+  if(!newName){ alert('그룹명을 입력해주세요.'); return; }
+  if(newName === oldName) return;
+  if(getAllGroups().includes(newName)){ alert('이미 존재하는 그룹명이에요.'); return; }
+  Object.keys(custGroups).forEach(phone=>{
+    if(custGroups[phone]===oldName) custGroups[phone]=newName;
+  });
+  const ci = customGroups.indexOf(oldName);
+  if(ci>=0) customGroups[ci]=newName;
+  saveData(); saveCustomGroups();
+  renderGroupMgrList();
+  renderGroupTabs();
+  renderCustomers(document.getElementById('custSearch').value);
+}
+
+function deleteGroupByIdx(idx){
+  const groups = getAllGroups();
+  const name = groups[idx];
+  if(!confirm(`'${name}' 그룹을 삭제할까요?\n해당 그룹 고객들의 그룹이 해제돼요.`)) return;
+  Object.keys(custGroups).forEach(phone=>{
+    if(custGroups[phone]===name) custGroups[phone]='';
+  });
+  customGroups = customGroups.filter(g=>g!==name);
+  // 기본 그룹은 숨기기(비활성화) 처리 - hiddenGroups에 추가
+  if(DEFAULT_GROUPS.includes(name)){
+    let hidden = JSON.parse(localStorage.getItem('sera_hiddenGroups')||'[]');
+    if(!hidden.includes(name)) hidden.push(name);
+    localStorage.setItem('sera_hiddenGroups', JSON.stringify(hidden));
+  }
+  saveData(); saveCustomGroups();
+  if(activeGroupFilter===name) activeGroupFilter='전체';
+  renderGroupMgrList();
+  renderGroupTabs();
+  renderCustomers(document.getElementById('custSearch').value);
 }
 
 function renameGroup(oldName){
