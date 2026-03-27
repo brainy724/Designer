@@ -1471,15 +1471,155 @@ function openBkModal(id){
     <div class="d-row"><span class="d-k">시술</span><span class="d-v">${svcNames}</span></div>
     <div class="d-row"><span class="d-k">날짜</span><span class="d-v">${fmtKo(b.date)}</span></div>
     <div class="d-row"><span class="d-k">시간</span><span class="d-v">${b.startTime} ~ ${b.endTime}</span></div>
-    <div class="d-row"><span class="d-k">연락처</span><span class="d-v">${b.phone}</span></div>
+    <div class="d-row">
+      <span class="d-k">연락처</span>
+      <span class="d-v" style="display:flex;align-items:center;gap:6px;flex:1">
+        <input id="editPhone-${id}" value="${b.phone}" type="tel" style="flex:1;padding:4px 8px;border:1.5px solid var(--ln);border-radius:6px;font-size:.8rem;font-family:'DM Sans','Noto Sans KR',sans-serif;min-width:0">
+        <button onclick="savePhoneEdit(${id})" style="padding:4px 10px;border:1.5px solid var(--pk-mid);border-radius:6px;background:var(--pk-light);color:var(--pk-dark);font-size:.72rem;cursor:pointer;white-space:nowrap;font-family:'DM Sans','Noto Sans KR',sans-serif">수정</button>
+      </span>
+    </div>
     <div class="d-row"><span class="d-k">합계</span><span class="d-v">${fmtMoney(b.totalPrice)}</span></div>
     ${b.note?`<div class="d-row"><span class="d-k">요청사항</span><span class="d-v">${b.note}</span></div>`:''}
     ${b.status==='change_req'?`<div class="d-row" style="background:var(--amb-bg)"><span class="d-k">변경 요청</span><span class="d-v">${fmtKo(b.reqDate)} ${b.reqTime}</span></div>`:''}
     ${taHTML}
+    <div class="msec" style="display:flex;justify-content:space-between;align-items:center">
+      <span>시술 변경</span>
+      <button onclick="toggleSvcEdit(${id})" id="svcEditToggle-${id}" style="font-size:.72rem;padding:3px 10px;border:1.5px solid var(--ln);border-radius:6px;background:var(--bg2);cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif;color:var(--sub)">수정하기</button>
+    </div>
+    <div id="svcEditArea-${id}" style="display:none;margin-bottom:8px">
+      <div id="svcEditList-${id}" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px"></div>
+      <button onclick="saveSvcEdit(${id})" style="width:100%;padding:9px;border:none;border-radius:8px;background:var(--pk);color:var(--w);font-size:.8rem;font-weight:600;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">시술 변경 저장</button>
+    </div>
     <div class="msec">예약 처리</div>
     <div style="display:flex;flex-direction:column;gap:5px">${acts}</div>`;
   document.getElementById('bkModal').classList.add('on');
 }
+// 시술 편집 토글
+let svcEditSel = {}; // {bkId: Set of svcIds}
+let svcEditExtra = {}; // {bkId: {svcId: optIdx}}
+
+function toggleSvcEdit(id){
+  const area = document.getElementById('svcEditArea-'+id);
+  const btn = document.getElementById('svcEditToggle-'+id);
+  if(!area) return;
+  const isOpen = area.style.display !== 'none';
+  if(isOpen){
+    area.style.display='none';
+    btn.textContent='수정하기';
+    return;
+  }
+  area.style.display='block';
+  btn.textContent='닫기';
+  // 현재 예약 시술 기준으로 선택 초기화
+  const b = bookings.find(x=>x.id===id);
+  if(!b) return;
+  const curIds = new Set(b.services.map(s=>s.id));
+  svcEditSel[id] = new Set(curIds);
+  svcEditExtra[id] = {};
+  renderSvcEditList(id);
+}
+
+function renderSvcEditList(id){
+  const el = document.getElementById('svcEditList-'+id);
+  if(!el) return;
+  const sel = svcEditSel[id]||new Set();
+  const extra = svcEditExtra[id]||{};
+  el.innerHTML = services.map(s=>{
+    const isSel = sel.has(s.id);
+    const hasOpts = s.extraOpts&&s.extraOpts.length>0;
+    const optIdx = extra[s.id]!==undefined ? extra[s.id] : 0;
+    const optHtml = hasOpts&&isSel ? `
+      <div onclick="event.stopPropagation()" style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px">
+        ${s.extraOpts.map((o,i)=>`
+          <button onclick="event.stopPropagation();setSvcEditOpt(${id},${s.id},${i})"
+            style="padding:2px 8px;border-radius:20px;border:1.5px solid ${optIdx===i?'var(--pk)':'var(--ln)'};background:${optIdx===i?'var(--pk)':'var(--w)'};color:${optIdx===i?'var(--w)':'var(--sub)'};font-size:.67rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">
+            ${o.label}${o.price>0?' +'+o.price.toLocaleString()+'원':''}
+          </button>`).join('')}
+      </div>` : '';
+    return `<div onclick="toggleSvcEditItem(${id},${s.id})"
+      style="padding:8px 10px;border:1.5px solid ${isSel?'var(--pk)':'var(--ln)'};border-radius:7px;cursor:pointer;background:${isSel?'var(--pk-light)':'var(--bg)'}">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:14px;height:14px;border-radius:3px;border:1.5px solid ${isSel?'var(--pk)':'var(--ln2)'};background:${isSel?'var(--pk)':'var(--w)'};display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--w);flex-shrink:0">${isSel?'✓':''}</div>
+        <span style="font-size:.8rem;font-weight:500">${s.name.ko}</span>
+        <span style="font-size:.65rem;background:var(--bg2);padding:1px 6px;border-radius:20px;color:var(--sub)">${fmtDur(s.durH)}</span>
+        <span style="margin-left:auto;font-size:.8rem;font-family:'DM Serif Display',serif">${s.price?fmtMoney(s.price):''}</span>
+      </div>
+      ${optHtml}
+    </div>`;
+  }).join('');
+}
+
+function toggleSvcEditItem(bkId, svcId){
+  if(!svcEditSel[bkId]) svcEditSel[bkId]=new Set();
+  if(svcEditSel[bkId].has(svcId)){ svcEditSel[bkId].delete(svcId); delete svcEditExtra[bkId][svcId]; }
+  else { svcEditSel[bkId].add(svcId); svcEditExtra[bkId][svcId]=0; }
+  renderSvcEditList(bkId);
+}
+
+function setSvcEditOpt(bkId, svcId, optIdx){
+  if(!svcEditExtra[bkId]) svcEditExtra[bkId]={};
+  svcEditExtra[bkId][svcId]=optIdx;
+  renderSvcEditList(bkId);
+}
+
+async function saveSvcEdit(id){
+  const sel = svcEditSel[id];
+  if(!sel||!sel.size){ alert('시술을 하나 이상 선택해주세요.'); return; }
+  const b = bookings.find(x=>x.id===id);
+  if(!b) return;
+  const extra = svcEditExtra[id]||{};
+  const newSvcs = services.filter(s=>sel.has(s.id)).map(s=>{
+    const optIdx = extra[s.id]||0;
+    const opt = s.extraOpts&&s.extraOpts[optIdx];
+    const addPrice = opt?opt.price:0;
+    const optLabel = opt&&opt.label?` (${opt.label})`:'';
+    return {id:s.id, name:s.name.ko+optLabel, price:s.price+addPrice, durH:s.durH};
+  });
+  const newDurH = newSvcs.reduce((a,s)=>a+s.durH,0);
+  const newPrice = newSvcs.reduce((a,s)=>a+s.price,0);
+  const newEnd = addTimeH(b.startTime, newDurH);
+  b.services = newSvcs;
+  b.totalDurH = newDurH;
+  b.totalPrice = newPrice;
+  b.endTime = newEnd;
+  saveData();
+  // Supabase 업데이트
+  try{
+    await fetch(SUPA_URL+'/rest/v1/bookings?id=eq.'+id,{
+      method:'PATCH',
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({services:newSvcs, total_dur_h:newDurH, total_price:newPrice, end_time:newEnd})
+    });
+  }catch(e){}
+  alert('시술이 변경되었습니다!');
+  closeModal('bkModal');
+  renderDash();
+}
+
+async function savePhoneEdit(id){
+  const input = document.getElementById('editPhone-'+id);
+  if(!input) return;
+  const newPhone = input.value.trim();
+  if(!newPhone){ alert('연락처를 입력해주세요.'); return; }
+  const b = bookings.find(x=>x.id===id);
+  if(!b) return;
+  const oldPhone = b.phone;
+  b.phone = newPhone;
+  // 같은 고객의 다른 예약도 업데이트
+  bookings.forEach(bk=>{ if(bk.phone===oldPhone) bk.phone=newPhone; });
+  saveData();
+  // Supabase 업데이트
+  try{
+    await fetch(SUPA_URL+'/rest/v1/bookings?phone=eq.'+encodeURIComponent(oldPhone),{
+      method:'PATCH',
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({phone: newPhone})
+    });
+  }catch(e){}
+  alert('연락처가 수정되었습니다!');
+  renderDash();
+}
+
 function adjustTime(id){
   const b=bookings.find(x=>x.id===id);
   const ns=document.getElementById('ta-start-'+id).value;
