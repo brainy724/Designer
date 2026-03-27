@@ -1434,18 +1434,44 @@ async function init(){
   renderSvcList();
   renderBCal();
   renderReviews();
-  // Supabase에서 최신 설정 불러오기 (카톡 인앱브라우저 대응)
+
+  // Supabase에서 설정 불러오기 (카톡 인앱브라우저 대응)
   const loaded = await loadSettingsFromSupa();
-  if(loaded){
-    saveData();
-    renderSvcList();
-    renderBCal();
-  }
+  if(loaded){ saveData(); renderSvcList(); }
+
+  // Supabase에서 예약 불러오기 (달력 예약됨 표시 정확히)
+  try{
+    const res = await fetch(SUPA_URL+'/rest/v1/bookings?select=*&order=date.desc', {
+      headers:{ 'apikey':SUPA_KEY, 'Authorization':'Bearer '+SUPA_KEY }
+    });
+    if(res.ok){
+      const data = await res.json();
+      if(data && data.length){
+        bookings = data.map(b=>({
+          id:b.id, name:b.name, phone:b.phone,
+          services:b.services||[], date:b.date,
+          startTime:b.start_time, endTime:b.end_time,
+          totalDurH:b.total_dur_h, totalPrice:b.total_price,
+          note:b.note||'', status:b.status
+        }));
+        saveData();
+      } else {
+        // Supabase에 데이터 없으면 bookings 비우기
+        bookings = [];
+        saveData();
+      }
+    }
+  }catch(e){}
+  renderBCal();
+
   // 리뷰도 Supabase에서
   const supaReviews = await loadReviewsFromSupa();
   if(supaReviews && supaReviews.length){
     reviews = supaReviews;
     saveData();
+    renderReviews();
+  } else {
+    reviews = [];
     renderReviews();
   }
 }
