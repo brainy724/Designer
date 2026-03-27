@@ -1594,15 +1594,29 @@ async function deleteCustomer(phone, name, e){
 // 그룹 목록 (기본 + 커스텀)
 const DEFAULT_GROUPS = ['전체','단골','VIP','외국인','신규'];
 let activeGroupFilter = '전체';
+let customGroups = JSON.parse(localStorage.getItem('sera_customGroups')||'[]');
 
+function saveCustomGroups(){
+  localStorage.setItem('sera_customGroups', JSON.stringify(customGroups));
+}
+
+function getAllGroups(){
+  const hidden = JSON.parse(localStorage.getItem('sera_hiddenGroups')||'[]');
+  // customGroups에 순서 정보가 있으면 그대로, 없으면 DEFAULT_GROUPS 기본 순서
+  const base = customGroups.length
+    ? [...new Set([...customGroups, ...DEFAULT_GROUPS.slice(1)])]
+    : [...DEFAULT_GROUPS.slice(1)];
+  return base.filter(g=>!hidden.includes(g));
+}
+
+// ── 그룹 탭 렌더 ──
 function renderGroupTabs(){
   const el = document.getElementById('custGroupTabs');
   if(!el) return;
-  // 사용 중인 커스텀 그룹 수집
   const allGroups = ['전체', ...getAllGroups()];
-  el.innerHTML = allGroups.map(g=>`
-    <button onclick="setGroupFilter('${g}')" style="padding:5px 12px;border-radius:20px;border:1.5px solid ${activeGroupFilter===g?'var(--pk)':'var(--ln)'};background:${activeGroupFilter===g?'var(--pk)':'var(--bg2)'};color:${activeGroupFilter===g?'var(--w)':'var(--sub)'};font-size:.72rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif;white-space:nowrap">${g}</button>
-  `).join('');
+  el.innerHTML = allGroups.map(g=>
+    `<button onclick="setGroupFilter('${g}')" style="padding:5px 12px;border-radius:20px;border:1.5px solid ${activeGroupFilter===g?'var(--pk)':'var(--ln)'};background:${activeGroupFilter===g?'var(--pk)':'var(--bg2)'};color:${activeGroupFilter===g?'var(--w)':'var(--sub)'};font-size:.72rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif;white-space:nowrap">${g}</button>`
+  ).join('');
 }
 
 function setGroupFilter(g){
@@ -1616,21 +1630,16 @@ function renderCustomers(filter=''){
   const map={};
   bookings.forEach(b=>{if(!map[b.phone])map[b.phone]={name:b.name,phone:b.phone,list:[]};map[b.phone].list.push(b);});
   let custs = Object.values(map).filter(c=>!filter||(c.name.includes(filter)||c.phone.includes(filter)));
-
-  // 그룹 필터
-  if(activeGroupFilter !== '전체'){
-    custs = custs.filter(c=>(custGroups[c.phone]||'') === activeGroupFilter);
+  if(activeGroupFilter!=='전체'){
+    custs = custs.filter(c=>(custGroups[c.phone]||'')===activeGroupFilter);
   }
-
-  // 정렬: 한글 가나다순, 영어 abc순
   custs.sort((a,b)=>{
-    const an=a.name, bn=b.name;
-    const aKo=/[가-힣]/.test(an[0]), bKo=/[가-힣]/.test(bn[0]);
+    const an=a.name,bn=b.name;
+    const aKo=/[가-힣]/.test(an[0]),bKo=/[가-힣]/.test(bn[0]);
     if(aKo&&bKo) return an.localeCompare(bn,'ko');
     if(!aKo&&!bKo) return an.localeCompare(bn,'en');
-    return aKo ? -1 : 1; // 한글 먼저
+    return aKo?-1:1;
   });
-
   document.getElementById('custList').innerHTML=custs.map(c=>{
     const done=c.list.filter(b=>b.status==='done');
     const last=[...done].sort((a,z)=>z.date.localeCompare(a.date))[0];
@@ -1639,7 +1648,7 @@ function renderCustomers(filter=''){
     return `<div class="cust-card" onclick="openCustModal('${c.phone}')">
       <div class="cust-av">${c.name[0]}</div>
       <div class="cust-info">
-        <div class="cust-name">${c.name} ${group?`<span style="font-size:.62rem;padding:1px 6px;border-radius:10px;background:var(--pk-light);color:var(--pk-dark);margin-left:4px">${group}</span>`:''}</div>
+        <div class="cust-name">${c.name}${group?` <span style="font-size:.62rem;padding:1px 6px;border-radius:10px;background:var(--pk-light);color:var(--pk-dark)">${group}</span>`:''}</div>
         <div class="cust-meta">${c.phone} · ${done.length}회 방문${revisit?' · 🔔 재방문알림':''}</div>
       </div>
       ${done.length>=3?'<span class="sbadge sb-confirmed">VIP</span>':''}
@@ -1647,79 +1656,41 @@ function renderCustomers(filter=''){
     </div>`;
   }).join('')||'<div class="empty-msg">고객이 없습니다</div>';
 }
-function openCustModal(phone){
-  const map={};bookings.forEach(b=>{if(!map[b.phone])map[b.phone]={name:b.name,phone:b.phone,list:[]};map[b.phone].list.push(b);});
-  const c=map[phone];
-  if(!c)return;
-  if(!custPhotos[phone])custPhotos[phone]=[];
-  document.getElementById('custMTitle').textContent=c.name;
-  const done=c.list.filter(b=>b.status==='done').sort((a,z)=>z.date.localeCompare(a.date));
-  const photos=custPhotos[phone];
-  const group = custGroups[phone]||'';
-  document.getElementById('custMBody').innerHTML=`
-    <div style="display:flex;gap:10px;align-items:center;margin-bottom:13px">
-      <div class="cust-av">${c.name[0]}</div>
-      <div><div style="font-weight:500">${c.name}</div><div style="font-size:.72rem;color:var(--sub);margin-top:1px">${c.phone}</div></div>
-    </div>
-    <div class="msec">그룹 설정</div>
-    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
-      ${['없음',...getAllGroups()].map(g=>`
-        <button onclick="setCustGroup('${phone}','${g==='없음'?'':g}')" style="padding:5px 12px;border-radius:20px;border:1.5px solid ${group===(g==='없음'?'':g)?'var(--pk)':'var(--ln)'};background:${group===(g==='없음'?'':g)?'var(--pk)':'var(--bg2)'};color:${group===(g==='없음'?'':g)?'var(--w)':'var(--sub)'};font-size:.74rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">${g}</button>
-      `).join('')}
-    </div>
-    <div style="display:flex;gap:6px;margin-bottom:12px">
-      <input id="customGroupInput" placeholder="직접 입력 (예: 임산부)" style="flex:1;padding:6px 10px;border:1.5px solid var(--ln);border-radius:7px;font-size:.78rem;font-family:'DM Sans','Noto Sans KR',sans-serif" value="${group&&!getAllGroups().includes(group)?group:''}">
-      <button onclick="setCustGroup('${phone}',document.getElementById('customGroupInput').value.trim())" class="btn-outline" style="white-space:nowrap">적용</button>
-    </div>
-    <div class="msec">메모</div>
-    <textarea id="custNoteArea" style="width:100%;padding:9px 11px;border:1.5px solid var(--ln);border-radius:7px;font-family:'DM Sans','Noto Sans KR',sans-serif;font-size:.8rem;min-height:64px;outline:none;resize:vertical" placeholder="모발 상태, 선호 스타일 등 메모...">${custNotes[phone]||''}</textarea>
-    <button class="btn-outline" style="margin-top:5px" onclick="saveCustNote('${phone}')">메모 저장</button>
-    <div class="msec">시술 사진</div>
-    <div class="photo-grid" id="photoGrid-${phone}"></div>
-    <input type="file" accept="image/*" id="photoInput-${phone}" style="display:none" onchange="addPhoto('${phone}',this)">
-    <div class="msec">시술 히스토리</div>
-    <div class="tl">${done.map(b=>{
-      const svcNames=b.services.map(s=>s.name).join(', ');
-      return `<div class="tl-item"><div class="tl-dot"></div>
-        <div class="tl-date">${fmtKo(b.date)} ${b.startTime}~${b.endTime}</div>
-        <div class="tl-svc">${svcNames}</div>
-        <div class="tl-price">${fmtMoney(b.totalPrice)} · <span class="sbadge ${sBadge(b.status)}">${sLabel(b.status)}</span></div>
-        ${b.note?`<div class="tl-note">💬 ${b.note}</div>`:''}
-      </div>`;}).join('')}</div>`;
-  renderPhotoGrid(phone);
-  document.getElementById('custModal').classList.add('on');
-}
-function renderPhotoGrid(phone){
-  const photos=custPhotos[phone]||[];
-  const grid=document.getElementById('photoGrid-'+phone);
-  if(!grid)return;
-  grid.innerHTML=photos.map((p,i)=>`<div class="photo-cell"><img src="${p}" onclick="openImgViewer('${p}')" style="cursor:zoom-in"><button class="ph-del" onclick="event.stopPropagation();delPhoto('${phone}',${i})">✕</button></div>`).join('')+
-    `<div class="photo-cell photo-add" onclick="document.getElementById('photoInput-${phone}').click()"><span class="ph-ico">+</span><span>사진 추가</span></div>`;
-}
-function saveCustNote(phone){custNotes[phone]=document.getElementById('custNoteArea').value;saveData();alert('저장되었습니다!');}
-function addPhoto(phone,input){
-  if(!input.files[0])return;
-  const reader=new FileReader();
-  reader.onload=e=>{if(!custPhotos[phone])custPhotos[phone]=[];custPhotos[phone].push(e.target.result);saveData();renderPhotoGrid(phone);};
-  reader.readAsDataURL(input.files[0]);input.value='';
-}
-// 커스텀 그룹 목록 (localStorage 저장)
-let customGroups = JSON.parse(localStorage.getItem('sera_customGroups')||'[]');
 
-function saveCustomGroups(){
-  localStorage.setItem('sera_customGroups', JSON.stringify(customGroups));
-}
-
-function getAllGroups(){
-  const hidden = JSON.parse(localStorage.getItem('sera_hiddenGroups')||'[]');
-  return [...new Set([...DEFAULT_GROUPS.slice(1), ...customGroups])].filter(g=>!hidden.includes(g));
-}
-
+// ── 그룹 관리 모달 ──
 function openGroupManager(){
   renderGroupMgrList();
   document.getElementById('groupMgrModal').classList.add('on');
 }
 
+
+let grpDragSrcIdx = null;
+function grpDragStart(e, idx){ grpDragSrcIdx=idx; e.dataTransfer.effectAllowed='move'; document.getElementById('grpRow-'+idx).style.opacity='0.4'; }
+function grpDragOver(e, idx){ e.preventDefault(); e.dataTransfer.dropEffect='move'; }
+function grpDragEnd(){ document.querySelectorAll('[id^="grpRow-"]').forEach(el=>el.style.opacity='1'); }
+function grpDrop(e, targetIdx){
+  e.preventDefault();
+  if(grpDragSrcIdx===null||grpDragSrcIdx===targetIdx) return;
+  const groups = getAllGroups();
+  // customGroups 기준으로 재정렬
+  const allWithCustom = [...DEFAULT_GROUPS.slice(1).filter(g=>groups.includes(g)), ...customGroups.filter(g=>!DEFAULT_GROUPS.includes(g))];
+  const srcName = groups[grpDragSrcIdx];
+  const tgtName = groups[targetIdx];
+  // 전체 순서 배열에서 위치 이동
+  const newOrder = [...groups];
+  newOrder.splice(grpDragSrcIdx,1);
+  newOrder.splice(targetIdx,0,srcName);
+  // customGroups를 newOrder 기준으로 재정렬
+  customGroups = newOrder.filter(g=>!DEFAULT_GROUPS.includes(g));
+  // DEFAULT_GROUPS도 순서 반영을 위해 hiddenGroups 활용 대신 customGroups에 전부 관리
+  // 기본 그룹 중 포함된 것도 customGroups에 넣어 순서 보장
+  const defaultInOrder = newOrder.filter(g=>DEFAULT_GROUPS.includes(g));
+  customGroups = newOrder.map(g=>g); // 전체 순서 저장
+  saveCustomGroups();
+  grpDragSrcIdx=null;
+  renderGroupMgrList();
+  renderGroupTabs();
+}
 function renderGroupMgrList(){
   const groups = getAllGroups();
   const el = document.getElementById('groupMgrList');
@@ -1730,13 +1701,33 @@ function renderGroupMgrList(){
   }
   el.innerHTML = groups.map((g,idx)=>{
     const count = Object.values(custGroups).filter(v=>v===g).length;
-    return `<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid var(--ln);border-radius:8px;background:var(--w)">
-      <input data-idx="${idx}" value="${g}" style="flex:1;padding:6px 9px;border:1.5px solid var(--ln);border-radius:6px;font-size:.8rem;font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx)" id="grpEdit-${idx}">
+    return `<div draggable="true" data-idx="${idx}"
+      ondragstart="grpDragStart(event,${idx})" ondragover="grpDragOver(event,${idx})" ondrop="grpDrop(event,${idx})" ondragend="grpDragEnd()"
+      style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid var(--ln);border-radius:8px;background:var(--w);cursor:grab;transition:opacity .15s" id="grpRow-${idx}">
+      <span style="color:var(--sub2);font-size:1rem;cursor:grab;flex-shrink:0">⠿</span>
+      <input id="grpEdit-${idx}" value="${g}" style="flex:1;padding:6px 9px;border:1.5px solid var(--ln);border-radius:6px;font-size:.8rem;font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx)">
       <span style="font-size:.72rem;color:var(--sub2);white-space:nowrap;background:var(--bg2);padding:2px 7px;border-radius:10px">${count}명</span>
-      <button onclick="renameGroupByIdx(${idx})" style="padding:6px 11px;border:1.5px solid var(--ln);border-radius:6px;background:var(--bg2);font-size:.73rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif;color:var(--tx)">수정</button>
+      <button onclick="renameGroupByIdx(${idx})" style="padding:6px 11px;border:1.5px solid var(--ln);border-radius:6px;background:var(--bg2);font-size:.73rem;cursor:pointer;color:var(--tx);font-family:'DM Sans','Noto Sans KR',sans-serif">수정</button>
       <button onclick="deleteGroupByIdx(${idx})" style="padding:6px 11px;border:1.5px solid #C4738A;border-radius:6px;background:#F9EEF1;color:#9E4D65;font-size:.73rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif;font-weight:500">삭제</button>
     </div>`;
   }).join('');
+}
+
+function addCustomGroup(){
+  const input = document.getElementById('newGroupInput');
+  if(!input) return;
+  const name = input.value.trim();
+  if(!name){ alert('그룹명을 입력해주세요.'); return; }
+  if(getAllGroups().includes(name)){ alert('이미 존재하는 그룹명이에요.'); return; }
+  // hidden에서 복원
+  let hidden = JSON.parse(localStorage.getItem('sera_hiddenGroups')||'[]');
+  hidden = hidden.filter(g=>g!==name);
+  localStorage.setItem('sera_hiddenGroups', JSON.stringify(hidden));
+  if(!customGroups.includes(name)) customGroups.push(name);
+  saveCustomGroups();
+  input.value='';
+  renderGroupMgrList();
+  renderGroupTabs();
 }
 
 function renameGroupByIdx(idx){
@@ -1748,9 +1739,7 @@ function renameGroupByIdx(idx){
   if(!newName){ alert('그룹명을 입력해주세요.'); return; }
   if(newName === oldName) return;
   if(getAllGroups().includes(newName)){ alert('이미 존재하는 그룹명이에요.'); return; }
-  Object.keys(custGroups).forEach(phone=>{
-    if(custGroups[phone]===oldName) custGroups[phone]=newName;
-  });
+  Object.keys(custGroups).forEach(p=>{ if(custGroups[p]===oldName) custGroups[p]=newName; });
   const ci = customGroups.indexOf(oldName);
   if(ci>=0) customGroups[ci]=newName;
   saveData(); saveCustomGroups();
@@ -1763,11 +1752,8 @@ function deleteGroupByIdx(idx){
   const groups = getAllGroups();
   const name = groups[idx];
   if(!confirm(`'${name}' 그룹을 삭제할까요?\n해당 그룹 고객들의 그룹이 해제돼요.`)) return;
-  Object.keys(custGroups).forEach(phone=>{
-    if(custGroups[phone]===name) custGroups[phone]='';
-  });
+  Object.keys(custGroups).forEach(p=>{ if(custGroups[p]===name) custGroups[p]=''; });
   customGroups = customGroups.filter(g=>g!==name);
-  // 기본 그룹은 숨기기(비활성화) 처리 - hiddenGroups에 추가
   if(DEFAULT_GROUPS.includes(name)){
     let hidden = JSON.parse(localStorage.getItem('sera_hiddenGroups')||'[]');
     if(!hidden.includes(name)) hidden.push(name);
@@ -1780,49 +1766,6 @@ function deleteGroupByIdx(idx){
   renderCustomers(document.getElementById('custSearch').value);
 }
 
-function renameGroup(oldName){
-  const newName = document.getElementById('grpEdit-'+oldName)?.value.trim();
-  if(!newName){ alert('그룹명을 입력해주세요.'); return; }
-  if(newName === oldName) return;
-  if(getAllGroups().includes(newName)){ alert('이미 존재하는 그룹명이에요.'); return; }
-  // 고객 그룹 업데이트
-  Object.keys(custGroups).forEach(phone=>{
-    if(custGroups[phone]===oldName) custGroups[phone]=newName;
-  });
-  // 커스텀 그룹 업데이트
-  const idx = customGroups.indexOf(oldName);
-  if(idx>=0) customGroups[idx]=newName;
-  saveData(); saveCustomGroups();
-  renderGroupMgrList();
-  renderGroupTabs();
-  renderCustomers(document.getElementById('custSearch').value);
-}
-
-function deleteGroup(name){
-  if(!confirm(`'${name}' 그룹을 삭제할까요?\n해당 그룹 고객들의 그룹이 해제돼요.`)) return;
-  // 고객 그룹 해제
-  Object.keys(custGroups).forEach(phone=>{
-    if(custGroups[phone]===name) custGroups[phone]='';
-  });
-  // 커스텀 그룹에서 제거
-  customGroups = customGroups.filter(g=>g!==name);
-  saveData(); saveCustomGroups();
-  if(activeGroupFilter===name) activeGroupFilter='전체';
-  renderGroupMgrList();
-  renderGroupTabs();
-  renderCustomers(document.getElementById('custSearch').value);
-}
-
-function addCustomGroup(){
-  const name = document.getElementById('newGroupInput')?.value.trim();
-  if(!name){ alert('그룹명을 입력해주세요.'); return; }
-  if(getAllGroups().includes(name)){ alert('이미 존재하는 그룹명이에요.'); return; }
-  customGroups.push(name);
-  saveCustomGroups();
-  document.getElementById('newGroupInput').value='';
-  renderGroupMgrList();
-  renderGroupTabs();
-}
 function setCustGroup(phone, group){
   custGroups[phone] = group;
   saveData();
@@ -1877,6 +1820,56 @@ function addPhoto(phone,input){
   reader.readAsDataURL(input.files[0]);input.value='';
 }
 function delPhoto(phone,idx){custPhotos[phone].splice(idx,1);saveData();renderPhotoGrid(phone);}
+function saveCustNote(phone){custNotes[phone]=document.getElementById('custNoteArea').value;saveData();alert('저장되었습니다!');}
+
+function renderPhotoGrid(phone){
+  const photos=custPhotos[phone]||[];
+  const grid=document.getElementById('photoGrid-'+phone);
+  if(!grid)return;
+  grid.innerHTML=photos.map((p,i)=>`<div class="photo-cell"><img src="${p}" onclick="openImgViewer('${p}')" style="cursor:zoom-in"><button class="ph-del" onclick="event.stopPropagation();delPhoto('${phone}',${i})">✕</button></div>`).join('')+
+    `<div class="photo-cell photo-add" onclick="document.getElementById('photoInput-${phone}').click()"><span class="ph-ico">+</span><span>사진 추가</span></div>`;
+}
+
+function openCustModal(phone){
+  const map={};bookings.forEach(b=>{if(!map[b.phone])map[b.phone]={name:b.name,phone:b.phone,list:[]};map[b.phone].list.push(b);});
+  const c=map[phone];
+  if(!c)return;
+  if(!custPhotos[phone])custPhotos[phone]=[];
+  document.getElementById('custMTitle').textContent=c.name;
+  const done=c.list.filter(b=>b.status==='done').sort((a,z)=>z.date.localeCompare(a.date));
+  const group=custGroups[phone]||'';
+  document.getElementById('custMBody').innerHTML=`
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:13px">
+      <div class="cust-av">${c.name[0]}</div>
+      <div><div style="font-weight:500">${c.name}</div><div style="font-size:.72rem;color:var(--sub);margin-top:1px">${c.phone}</div></div>
+    </div>
+    <div class="msec">그룹 설정</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+      ${['없음',...getAllGroups()].map(g=>`
+        <button onclick="setCustGroup('${phone}','${g==='없음'?'':g}')" style="padding:5px 12px;border-radius:20px;border:1.5px solid ${group===(g==='없음'?'':g)?'var(--pk)':'var(--ln)'};background:${group===(g==='없음'?'':g)?'var(--pk)':'var(--bg2)'};color:${group===(g==='없음'?'':g)?'var(--w)':'var(--sub)'};font-size:.74rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">${g}</button>
+      `).join('')}
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <input id="customGroupInput" placeholder="직접 입력 (예: 임산부)" style="flex:1;padding:6px 10px;border:1.5px solid var(--ln);border-radius:7px;font-size:.78rem;font-family:'DM Sans','Noto Sans KR',sans-serif" value="${group&&!getAllGroups().includes(group)?group:''}">
+      <button onclick="setCustGroup('${phone}',document.getElementById('customGroupInput').value.trim())" class="btn-outline" style="white-space:nowrap">적용</button>
+    </div>
+    <div class="msec">메모</div>
+    <textarea id="custNoteArea" style="width:100%;padding:9px 11px;border:1.5px solid var(--ln);border-radius:7px;font-family:'DM Sans','Noto Sans KR',sans-serif;font-size:.8rem;min-height:64px;outline:none;resize:vertical" placeholder="모발 상태, 선호 스타일 등 메모...">${custNotes[phone]||''}</textarea>
+    <button class="btn-outline" style="margin-top:5px" onclick="saveCustNote('${phone}')">메모 저장</button>
+    <div class="msec">시술 사진</div>
+    <div class="photo-grid" id="photoGrid-${phone}"></div>
+    <input type="file" accept="image/*" id="photoInput-${phone}" style="display:none" onchange="addPhoto('${phone}',this)">
+    <div class="msec">시술 히스토리</div>
+    <div class="tl">${done.map(b=>{
+      const svcNames=b.services.map(s=>s.name).join(', ');
+      return `<div class="tl-item"><div class="tl-dot"></div>
+        <div class="tl-date">${fmtKo(b.date)} ${b.startTime}~${b.endTime}</div>
+        <div class="tl-svc">${svcNames}</div>
+        <div class="tl-price">${fmtMoney(b.totalPrice)} · <span class="sbadge ${sBadge(b.status)}">${sLabel(b.status)}</span></div>
+        ${b.note?`<div class="tl-note">💬 ${b.note}</div>`:''}</div>`;}).join('')}</div>`;
+  renderPhotoGrid(phone);
+  document.getElementById('custModal').classList.add('on');
+}
 
 // ── 시술 편집 ──
 function renderSvcEditor(){
