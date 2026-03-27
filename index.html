@@ -492,6 +492,10 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
       </div>
       <div class="field"><label data-ko="이름 *" data-en="Name *">이름 *</label><input id="fn" data-ko-ph="홍길동" data-en-ph="Full Name" placeholder="홍길동" oninput="ckS3()"></div>
       <div class="field"><label data-ko="연락처 *" data-en="Phone *">연락처 *</label><input id="fp" type="tel" data-ko-ph="010-0000-0000" data-en-ph="Phone number" placeholder="010-0000-0000" oninput="ckS3()"></div>
+      <div class="field">
+        <label>예약 비밀번호 * <span style="font-size:.7rem;color:var(--sub);font-weight:400">(숫자 4자리 — 예약 확인 시 필요해요)</span></label>
+        <input id="fbk-pin" type="password" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="숫자 4자리" oninput="ckS3()" style="letter-spacing:6px;font-size:1.1rem">
+      </div>
       <div class="field"><label data-ko="요청 사항" data-en="Special Requests">요청 사항</label><textarea id="fnt" data-ko-ph="원하시는 스타일, 모발 상태 등을 미리 알려주세요 :)" data-en-ph="Please share your desired style or hair condition :)" placeholder="원하시는 스타일, 모발 상태 등을 미리 알려주세요 :)"></textarea></div>
 
       <!-- 개인정보 동의 -->
@@ -546,6 +550,7 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
       <div class="lookup-sub" data-ko="이름과 연락처를 입력하면 예약 내역을 조회할 수 있어요" data-en="Enter your name and phone number to look up your booking">이름과 연락처를 입력하면 예약 내역을 조회할 수 있어요</div>
       <div class="field"><label data-ko="이름" data-en="Name">이름</label><input id="lkName" data-ko-ph="홍길동" data-en-ph="Full Name" placeholder="홍길동"></div>
       <div class="field"><label data-ko="연락처" data-en="Phone">연락처</label><input id="lkPhone" type="tel" data-ko-ph="010-0000-0000" data-en-ph="Phone number" placeholder="010-0000-0000"></div>
+      <div class="field"><label>예약 비밀번호</label><input id="lkPin" type="password" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="숫자 4자리" style="letter-spacing:6px;font-size:1.1rem"></div>
       <button class="btn btn-dark" onclick="doLookup()" data-ko="조회하기" data-en="Search">조회하기</button>
     </div>
     <div id="lkResults"></div>
@@ -741,7 +746,7 @@ async function saveBookingToSupa(b){
     services: b.services, date: b.date,
     start_time: b.startTime, end_time: b.endTime,
     total_dur_h: b.totalDurH, total_price: b.totalPrice,
-    note: b.note || '', status: b.status
+    note: b.note || '', status: b.status, pin: b.pin || '0000'
   };
   const res = await sbFetch('bookings', { method:'POST', prefer:'return=minimal', body: JSON.stringify(data) });
   return res;
@@ -756,7 +761,7 @@ async function loadBookingsFromSupa(name, phone){
     services: b.services || [], date: b.date,
     startTime: b.start_time, endTime: b.end_time,
     totalDurH: b.total_dur_h, totalPrice: b.total_price,
-    note: b.note || '', status: b.status
+    note: b.note || '', status: b.status, pin: b.pin || '0000'
   }));
 }
 
@@ -1134,8 +1139,10 @@ function renderS3Sum(){
     `<div class="sum-row"><span class="sum-k">${lang==='en'?'Total':'합계'}</span><span class="sum-v" style="font-family:'DM Serif Display',serif;font-size:1.05rem">${fmtMoney(totalPrice)}</span></div>`;
 }
 function ckS3(){
-  const ok=document.getElementById('fn').value.trim()
+  const pin = document.getElementById('fbk-pin')?.value.trim()||'';
+  const ok = document.getElementById('fn').value.trim()
     && document.getElementById('fp').value.trim()
+    && /^\d{4}$/.test(pin)
     && document.getElementById('privacyAgree').checked;
   document.getElementById('s3btn').disabled=!ok;
 }
@@ -1144,6 +1151,8 @@ async function submitBooking(){
   const name=document.getElementById('fn').value.trim();
   const phone=document.getElementById('fp').value.trim();
   const note=document.getElementById('fnt').value.trim();
+  const pin=document.getElementById('fbk-pin')?.value.trim()||'0000';
+  if(!pin||!/^\d{4}$/.test(pin)){alert('예약 비밀번호를 4자리 숫자로 입력해주세요.');return;}
   const selArr=services.filter(s=>selSvcIds.has(s.id));
   const totalDurH=getTotalDurH();
   // 기장 옵션 추가금액 반영
@@ -1161,7 +1170,7 @@ async function submitBooking(){
       return {id:s.id,name:(lang==='en'?(s.name.en||s.name.ko):s.name.ko)+optLabel,price:s.price+extra,durH:s.durH};
     }),
     date:sel.date,startTime:sel.startTime,endTime:sel.endTime,
-    totalDurH,totalPrice,note,status:'pending'};
+    totalDurH,totalPrice,note,status:'pending',pin};
   bookings.push(b);saveData();
   // Supabase에 저장 (await으로 확실하게)
   try{ await saveBookingToSupa(b); }catch(e){}
@@ -1213,7 +1222,9 @@ function resetBooking(){
 async function doLookup(){
   const name = document.getElementById('lkName').value.trim();
   const phone = document.getElementById('lkPhone').value.trim();
+  const pin = document.getElementById('lkPin')?.value.trim()||'';
   if(!name||!phone){ alert('이름과 연락처를 입력해주세요.'); return; }
+  if(!pin){ alert('예약 비밀번호를 입력해주세요.'); return; }
   const el = document.getElementById('lkResults');
   el.innerHTML = '<div style="text-align:center;padding:18px;color:var(--sub);font-size:.8rem">조회 중...</div>';
 
@@ -1245,7 +1256,7 @@ async function doLookup(){
         services:b.services||[], date:b.date,
         startTime:b.start_time, endTime:b.end_time,
         totalDurH:b.total_dur_h, totalPrice:b.total_price,
-        note:b.note||'', status:b.status
+        note:b.note||'', status:b.status, pin:b.pin||'0000'
       }));
       found.forEach(sb=>{
         const idx=bookings.findIndex(b=>b.id===sb.id);
@@ -1257,6 +1268,12 @@ async function doLookup(){
 
   if(!found.length){
     el.innerHTML=`<div class="lookup-card"><div style="text-align:center;padding:18px;color:var(--sub);font-size:.82rem">일치하는 예약이 없습니다.</div></div>`;
+    return;
+  }
+  // PIN 검증 (첫 번째 예약 기준)
+  const bkPin = found[0]?.pin || '0000';
+  if(pin !== bkPin){
+    el.innerHTML=`<div class="lookup-card"><div style="text-align:center;padding:18px;color:var(--red);font-size:.82rem">🔒 비밀번호가 올바르지 않아요.</div></div>`;
     return;
   }
   el.innerHTML=found.map(b=>buildLkCard(b)).join('');

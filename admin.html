@@ -329,10 +329,11 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(17,17,17,.45);z-index:400;align-items:center;justify-content:center;padding:12px;backdrop-filter:blur(2px);}
 .modal-bg.on{display:flex;}
 .modal{background:var(--w);border-radius:12px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto;animation:fadeUp .17s ease;}
-.modal-head{padding:13px 13px 10px;border-bottom:1px solid var(--ln);display:flex;justify-content:space-between;align-items:center;}
+.modal-card{background:var(--w);border-radius:14px;width:100%;max-width:480px;max-height:88vh;overflow:hidden;display:flex;flex-direction:column;}
+.modal-head{padding:13px 13px 10px;border-bottom:1px solid var(--ln);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;}
 .modal-title{font-family:'DM Serif Display',serif;font-size:1.08rem;font-weight:400;}
-.modal-close{background:none;border:none;font-size:.93rem;cursor:pointer;color:var(--sub);padding:2px 4px;}
-.modal-body{padding:13px;}
+.modal-close{width:32px;height:32px;border-radius:50%;border:2px solid var(--pk-mid);background:var(--pk-light);color:var(--pk-dark);font-size:.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;}
+.modal-body{padding:13px;overflow-y:auto;}
 .msec{font-family:'DM Serif Display',serif;font-size:.9rem;margin:12px 0 6px;font-weight:400;padding-top:10px;border-top:1px solid var(--ln);}
 .msec:first-child{margin-top:0;padding-top:0;border-top:none;}
 .d-row{display:flex;justify-content:space-between;padding:5px 8px;background:var(--bg2);border-radius:4px;margin-bottom:3px;font-size:.77rem;}
@@ -442,9 +443,9 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
           <div class="dash-head"><div class="dash-title">대시보드</div><div class="dash-date" id="dashDate"></div></div>
           <div id="reqBanners"></div>
           <div class="kpi-row">
-            <div class="kpi"><div class="kpi-n" id="kpi0">0</div><div class="kpi-l">오늘 예약</div></div>
-            <div class="kpi"><div class="kpi-n" id="kpi1">0</div><div class="kpi-l">확인 대기</div></div>
-            <div class="kpi"><div class="kpi-n" id="kpi2">0</div><div class="kpi-l">이번 달</div></div>
+            <div class="kpi" id="kpi-card0" style="cursor:pointer;transition:all .12s" onclick="kpiClick(0)"><div class="kpi-n" id="kpi0">0</div><div class="kpi-l">오늘 예약</div></div>
+            <div class="kpi" id="kpi-card1" style="cursor:pointer;transition:all .12s" onclick="kpiClick(1)"><div class="kpi-n" id="kpi1">0</div><div class="kpi-l">확인 대기</div></div>
+            <div class="kpi" id="kpi-card2" style="cursor:pointer;transition:all .12s" onclick="kpiClick(2)"><div class="kpi-n" id="kpi2">0</div><div class="kpi-l">이번 달</div></div>
           </div>
           <div class="dash-grid">
             <div class="pc">
@@ -796,6 +797,17 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
         <button onclick="addCustomGroup()" class="btn-outline" style="white-space:nowrap">+ 추가</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- KPI 상세 모달 -->
+<div class="modal-bg" id="kpiModal">
+  <div class="modal-card">
+    <div class="modal-head" style="flex-shrink:0">
+      <div class="modal-title" id="kpiModalTitle"></div>
+      <button class="modal-close" onclick="closeModal('kpiModal')">✕</button>
+    </div>
+    <div id="kpiModalBody" style="overflow-x:auto;overflow-y:hidden;padding:14px;-webkit-overflow-scrolling:touch;scrollbar-width:none"></div>
   </div>
 </div>
 
@@ -1292,9 +1304,22 @@ function mTab(btn){document.querySelectorAll('.m-tab').forEach(b=>b.classList.re
 function renderDash(){
   const now=TODAY;
   document.getElementById('dashDate').textContent=`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일`;
-  document.getElementById('kpi0').textContent=bookings.filter(b=>b.date===todayStr&&b.status!=='cancelled').length;
-  document.getElementById('kpi1').textContent=bookings.filter(b=>b.status==='pending').length;
-  document.getElementById('kpi2').textContent=bookings.filter(b=>b.date.startsWith(`${now.getFullYear()}-${pad(now.getMonth()+1)}`)&&b.status!=='cancelled').length;
+  const cnt0=bookings.filter(b=>b.date===todayStr&&b.status!=='cancelled').length;
+  const cnt1=bookings.filter(b=>b.status==='pending').length;
+  const cnt2=bookings.filter(b=>b.date.startsWith(`${now.getFullYear()}-${pad(now.getMonth()+1)}`)&&b.status!=='cancelled').length;
+  document.getElementById('kpi0').textContent=cnt0;
+  document.getElementById('kpi1').textContent=cnt1;
+  document.getElementById('kpi2').textContent=cnt2;
+  // 0이면 클릭 불가 스타일
+  [0,1,2].forEach(i=>{
+    const card=document.getElementById('kpi-card'+i);
+    const cnt=[cnt0,cnt1,cnt2][i];
+    if(card){
+      card.style.opacity=cnt===0?'0.5':'1';
+      card.style.cursor=cnt===0?'default':'pointer';
+      card.style.pointerEvents=cnt===0?'none':'auto';
+    }
+  });
   const reqs=bookings.filter(b=>b.status==='cancel_req'||b.status==='change_req');
   document.getElementById('reqBanners').innerHTML=reqs.map(b=>`
     <div class="req-banner">
@@ -1307,6 +1332,44 @@ function renderDash(){
       </div>
     </div>`).join('');
   renderDCal();renderDashList(adminSelDate);
+}
+
+function kpiClick(type){
+  const now=TODAY;
+  let list=[], title='';
+  if(type===0){
+    list=bookings.filter(b=>b.date===todayStr&&b.status!=='cancelled').sort((a,b)=>a.startTime.localeCompare(b.startTime));
+    title=`오늘 예약 (${list.length}건)`;
+  } else if(type===1){
+    list=bookings.filter(b=>b.status==='pending').sort((a,b)=>a.date.localeCompare(b.date)||a.startTime.localeCompare(b.startTime));
+    title=`확인 대기 (${list.length}건)`;
+  } else {
+    list=bookings.filter(b=>b.date.startsWith(`${now.getFullYear()}-${pad(now.getMonth()+1)}`)&&b.status!=='cancelled').sort((a,b)=>a.date.localeCompare(b.date)||a.startTime.localeCompare(b.startTime));
+    title=`이번 달 예약 (${list.length}건)`;
+  }
+  document.getElementById('kpiModalTitle').textContent=title;
+  if(!list.length){
+    document.getElementById('kpiModalBody').innerHTML='<div style="text-align:center;padding:30px;color:var(--sub);font-size:.8rem">예약이 없습니다</div>';
+  } else {
+    document.getElementById('kpiModalBody').innerHTML=`
+      <div style="display:flex;gap:10px;padding-bottom:6px">
+        ${list.map(b=>`
+          <div onclick="closeModal('kpiModal');setTimeout(()=>openBkModal(${b.id}),150)"
+            style="flex-shrink:0;width:200px;padding:13px 14px;border:1.5px solid var(--ln);border-radius:10px;cursor:pointer;background:var(--w);box-shadow:0 1px 4px rgba(0,0,0,.07)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
+              <span style="font-weight:700;font-size:.95rem">${b.name}</span>
+              <span class="sbadge ${sBadge(b.status)}" style="font-size:.6rem">${sLabel(b.status)}</span>
+            </div>
+            <div style="font-size:.72rem;color:var(--pk-dark);font-weight:600;margin-bottom:4px">${b.startTime}~${b.endTime}</div>
+            <div style="font-size:.7rem;color:var(--sub);margin-bottom:3px">${fmtKo(b.date)}</div>
+            <div style="font-size:.72rem;color:var(--tx);margin-bottom:4px;word-break:break-all">${b.services.map(s=>s.name).join(', ')}</div>
+            <div style="font-size:.78rem;font-weight:600;color:var(--pk)">${fmtMoney(b.totalPrice)}</div>
+            <div style="font-size:.68rem;color:var(--sub2);margin-top:3px">${b.phone}</div>
+          </div>`).join('')}
+      </div>
+      <div style="text-align:center;font-size:.68rem;color:var(--sub2);margin-top:6px">← 좌우로 스크롤하세요 →</div>`;
+  }
+  document.getElementById('kpiModal').classList.add('on');
 }
 async function approveReq(id){
   const b=bookings.find(x=>x.id===id);
@@ -1564,7 +1627,7 @@ function submitAdminBooking(){
     const optLabel=opt&&opt.label?` (${opt.label})`:'';
     return {id:s.id,name:s.name.ko+optLabel,price:s.price+extra,durH:s.durH};
   });
-  bookings.push({id:bkNextId++,name,phone,services:svcArr,date,startTime,endTime,totalDurH,totalPrice,note,status:'confirmed'});
+  bookings.push({id:bkNextId++,name,phone,services:svcArr,date,startTime,endTime,totalDurH,totalPrice,note,status:'confirmed',pin:'0000'});
   document.getElementById('nb-name').value='';document.getElementById('nb-phone').value='';
   document.getElementById('nb-date').value='';document.getElementById('nb-note').value='';
   document.getElementById('nb-time-check').style.display='none';
