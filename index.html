@@ -438,7 +438,8 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
       </div>
       <!-- 카테고리 탭 -->
       <div id="catTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;"></div>
-      <div class="svc-list" id="svcList"></div>
+      <div class="svc-list" id="svcList" style="overflow:hidden;transition:max-height .3s ease"></div>
+      <button id="svcToggleBtnCustomer" onclick="toggleSvcListCustomer()" style="display:none;width:100%;margin-bottom:10px;padding:8px;border:1.5px solid var(--ln);border-radius:8px;background:var(--bg2);font-size:.76rem;cursor:pointer;color:var(--sub);font-family:'DM Sans','Noto Sans KR',sans-serif"></button>
       <div class="sel-summary" id="selSummary">
         <div class="sel-tags" id="selTags"></div>
         <div class="sel-sum-row">
@@ -920,6 +921,7 @@ function showView(v,btn){
 // 예약 플로우
 // ═══════════════════════════════════════════════════
 let activeCat = '전체';
+let svcListExpandedCustomer = false;
 
 function renderCatTabs(){
   const tabEl = document.getElementById('catTabs');
@@ -936,6 +938,7 @@ function renderCatTabs(){
 
 function setCat(cat){
   activeCat = cat;
+  svcListExpandedCustomer = false;
   renderCatTabs();
   renderSvcCards();
 }
@@ -980,6 +983,31 @@ function renderSvcCards(){
     </div>`;
   }).join('');
   updateSelSummary();
+  setTimeout(applySvcCollapseCustomer, 50);
+}
+
+function applySvcCollapseCustomer(){
+  const el = document.getElementById('svcList');
+  const btn = document.getElementById('svcToggleBtnCustomer');
+  if(!el||!btn) return;
+  const items = el.querySelectorAll('.svc-card');
+  const SHOW = 4;
+  if(items.length <= SHOW){ el.style.maxHeight=''; btn.style.display='none'; return; }
+  btn.style.display = 'block';
+  if(svcListExpandedCustomer){
+    el.style.maxHeight = el.scrollHeight+'px';
+    btn.textContent = '▲ 접기';
+  } else {
+    let h=0;
+    for(let i=0;i<SHOW;i++) if(items[i]) h+=items[i].offsetHeight+6;
+    el.style.maxHeight = h+'px';
+    btn.textContent = `▼ 전체 보기 (${items.length}개)`;
+  }
+}
+
+function toggleSvcListCustomer(){
+  svcListExpandedCustomer = !svcListExpandedCustomer;
+  applySvcCollapseCustomer();
 }
 
 function selectExtraOpt(svcId, optIdx){
@@ -1475,7 +1503,7 @@ function renderCal(gridId,titleId,year,month,selDate,clickFn,adminMode=false,sho
     const isOff=showOff&&(offDays.has(ds)||recurringDows.has(new Date(ds+'T00:00:00').getDay()));
     const isSun=new Date(ds+'T00:00:00').getDay()===0;
     const hasBk=adminMode&&bookedDates.has(ds);
-    const hasBlk=adminMode&&partialDates.has(ds);
+    const hasBlk=partialDates.has(ds); // 관리자/고객 모두 표시
     let cls='cal-d';
     if(past)cls+=' past'; if(isOff)cls+=' offday';
     if(isTd)cls+=' today'; if(isSel)cls+=' sel';
