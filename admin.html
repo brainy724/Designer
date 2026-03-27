@@ -1181,21 +1181,28 @@ function doLogout(){
 async function initAdmin(){
   loadData();
   costEntries = JSON.parse(localStorage.getItem('sera_costs')||'[]');
-  // cost-date 기본값 오늘
   const cd = document.getElementById('cost-date');
   if(cd) cd.value = todayStr;
-  renderDash(); // 먼저 localStorage로 빠르게 표시
-  // Supabase에서 최신 데이터 로드
+  renderDash();
+  // Supabase에서 설정 먼저 불러오기 (메뉴 덮어쓰기 방지)
+  try{
+    const settingsRes = await sbFetch('settings?key=eq.app_settings');
+    if(settingsRes && settingsRes.length){
+      const data = settingsRes[0].value;
+      if(data.services && data.services.length) services = data.services.map(s=>({...s, cat:s.cat||''}));
+      if(data.open) OPEN = data.open;
+      if(data.close) CLOSE = data.close;
+      if(data.offDays) offDays = new Set(data.offDays);
+      if(data.recurringDows) recurringDows = new Set(data.recurringDows);
+      if(data.dayBlocks) dayBlocks = data.dayBlocks;
+      saveData();
+    }
+  }catch(e){}
+  // Supabase에서 예약/리뷰 로드
   const supaBookings = await loadAllBookingsFromSupa();
-  if(supaBookings && supaBookings.length){
-    bookings = supaBookings;
-    saveData();
-  }
+  if(supaBookings && supaBookings.length){ bookings = supaBookings; saveData(); }
   const supaReviews = await loadAllReviewsFromSupa();
-  if(supaReviews && supaReviews.length){
-    reviews = supaReviews;
-    saveData();
-  }
+  if(supaReviews && supaReviews.length){ reviews = supaReviews; saveData(); }
   renderDash();
   renderAdminReviews();
   renderCustomers();
@@ -1203,17 +1210,11 @@ async function initAdmin(){
   populateBlockSelects();
   renderSvcEditor();
   renderMenuManage();
-  // 현재 설정 Supabase에 자동 저장 (카톡 인앱브라우저 대응)
-  saveSettingsToSupa().catch(()=>{});
-  // 자동 예약 완료 처리
   autoCompleteBookings();
-  // 미확인 예약 알림
   checkPendingAlert();
-  // 7일 이상 백업 안 했으면 알림
   checkAutoBackupReminder();
   const lb=document.getElementById('logoutTopBtn');
   if(lb)lb.style.display='block';
-  // 1분마다 대시보드 자동 갱신 (오늘 남은 예약 카운트 업데이트)
   setInterval(()=>{ if(document.getElementById('panel-dash')?.classList.contains('on')) renderDash(); }, 60000);
 }
 
@@ -1790,7 +1791,7 @@ function updateNbSummary(){
     <div class="sel-sum-row"><span class="sel-sum-label">총 소요</span><span class="sel-sum-val">${fmtDur(dur)}</span></div>
     <div class="sel-sum-row"><span class="sel-sum-label">합계</span><span class="sel-sum-total">${fmtMoney(price)}</span></div>`;
 }
-function submitAdminBooking(){
+async function submitAdminBooking(){
   const name=document.getElementById('nb-name').value.trim();
   const phone=document.getElementById('nb-phone').value.trim();
   const date=document.getElementById('nb-date').value;
@@ -1817,12 +1818,26 @@ function submitAdminBooking(){
     const optLabel=opt&&opt.label?` (${opt.label})`:'';
     return {id:s.id,name:s.name.ko+optLabel,price:s.price+extra,durH:s.durH};
   });
-  bookings.push({id:bkNextId++,name,phone,services:svcArr,date,startTime,endTime,totalDurH,totalPrice,note,status:'confirmed',pin:'0000'});
+  const newBk = {id:bkNextId++,name,phone,services:svcArr,date,startTime,endTime,totalDurH,totalPrice,note,status:'confirmed',pin:'0000'};
+  bookings.push(newBk);
   document.getElementById('nb-name').value='';document.getElementById('nb-phone').value='';
   document.getElementById('nb-date').value='';document.getElementById('nb-note').value='';
   document.getElementById('nb-time-check').style.display='none';
   nbSelIds.clear();initNbForm();
-  alert('예약이 등록되었습니다!');saveData();renderDash();
+  saveData();
+  // Supabase에 저장
+  try{
+    await sbFetch('bookings',{
+      method:'POST', prefer:'return=minimal',
+      body:JSON.stringify({
+        name, phone, services:svcArr, date,
+        start_time:startTime, end_time:endTime,
+        total_dur_h:totalDurH, total_price:totalPrice,
+        note:note||'', status:'confirmed', pin:'0000'
+      })
+    });
+  }catch(e){}
+  alert('예약이 등록되었습니다!');renderDash();
 }
 
 // ── 고객 관리 ──
