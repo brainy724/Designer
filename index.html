@@ -905,6 +905,29 @@ function goHome(){
   document.getElementById('v-home').classList.add('on');
 }
 function goBook(){
+  const pw = localStorage.getItem('sera_bookPw')||'';
+  if(pw){
+    const modal = document.getElementById('bookPwModal');
+    modal.style.display='flex';
+    document.getElementById('bookPwInput').value='';
+    document.getElementById('bookPwMsg').style.display='none';
+    setTimeout(()=>document.getElementById('bookPwInput').focus(),100);
+    return;
+  }
+  enterBooking();
+}
+function checkBookPw(){
+  const pw = localStorage.getItem('sera_bookPw')||'';
+  const input = document.getElementById('bookPwInput').value;
+  if(input===pw){ enterBooking(); return; }
+  const msg = document.getElementById('bookPwMsg');
+  msg.style.display='block';
+  msg.textContent='비밀번호가 올바르지 않아요.';
+  document.getElementById('bookPwInput').value='';
+  document.getElementById('bookPwInput').focus();
+}
+function enterBooking(){
+  document.getElementById('bookPwModal').style.display='none';
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('on'));
   document.querySelectorAll('.ttab').forEach(el=>el.classList.remove('on'));
   document.getElementById('v-book').classList.add('on');
@@ -1680,5 +1703,18 @@ async function init(){
 }
 init();
 </script>
+
+<!-- 예약 입장 비밀번호 모달 -->
+<div id="bookPwModal" style="display:none;position:fixed;inset:0;background:rgba(17,17,17,.5);z-index:500;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--w);border-radius:16px;width:100%;max-width:340px;padding:28px 24px;text-align:center">
+    <div style="font-family:'DM Serif Display',serif;font-size:1.3rem;margin-bottom:6px">예약하기</div>
+    <div style="font-size:.78rem;color:var(--sub);margin-bottom:20px">비밀번호를 입력해주세요</div>
+    <input id="bookPwInput" type="password" maxlength="20" placeholder="비밀번호 입력"
+      style="width:100%;padding:11px 14px;border:1.5px solid var(--ln);border-radius:9px;font-size:.95rem;font-family:'DM Sans','Noto Sans KR',sans-serif;text-align:center;letter-spacing:4px;outline:none;margin-bottom:8px"
+      onkeydown="if(event.key==='Enter')checkBookPw()">
+    <div id="bookPwMsg" style="display:none;font-size:.75rem;color:var(--red);margin-bottom:8px"></div>
+    <button onclick="checkBookPw()" style="width:100%;padding:12px;background:var(--pk);color:var(--w);border:none;border-radius:9px;font-size:.88rem;font-weight:600;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">확인</button>
+  </div>
+</div>
 </body>
 </html>
