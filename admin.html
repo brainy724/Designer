@@ -1334,7 +1334,7 @@ function renderDash(){
   const l2=document.getElementById('kpi-l2');
   const l3=document.getElementById('kpi-l3');
   if(l2) l2.textContent=isCurrentMonth?'이번 달':` ${dCalM+1}월`;
-  if(l3) l3.textContent=isCurrentMonth?'이번달 매출':`${dCalM+1}월 매출`;
+  if(l3) l3.textContent=isCurrentMonth?'이번달 순매출':`${dCalM+1}월 순매출`;
 
   // 0이면 클릭 불가
   [0,1,2,3].forEach(i=>{
@@ -1442,10 +1442,14 @@ function renderDashList(ds){
   // 항상 선택된 날짜 기준
   labelEl.textContent=ds===todayStr?'오늘 예약':fmtKo(ds);
   const list=bookings.filter(b=>b.date===ds&&b.status!=='cancelled').sort((a,z)=>a.startTime.localeCompare(z.startTime));
-  // 취소 제외 전체 건수 및 금액 (pending 포함)
-  const rev=list.reduce((a,b)=>a+b.totalPrice,0);
+  // 순매출: totalPrice(할인 적용된 실제 금액) 합산, 확정+완료만
+  const confirmedList = list.filter(b=>b.status==='done'||b.status==='confirmed');
+  const origTotal = confirmedList.reduce((a,b)=>a+b.services.reduce((x,s)=>x+(s.price||0),0),0);
+  const paidTotal = confirmedList.reduce((a,b)=>a+b.totalPrice,0);
+  const netRev = paidTotal; // 이미 할인 적용된 금액
+  const discountTotal = origTotal - paidTotal;
   countEl.innerHTML=list.length
-    ? `<span style="font-weight:700;color:var(--tx)">${list.length}건</span>${rev>0?` <span style="font-family:'DM Serif Display',serif;font-weight:700;color:var(--pk);font-size:.85rem">${fmtMoney(rev)}</span>`:''}`
+    ? `<span style="font-weight:700;color:var(--tx)">${confirmedList.length}건</span>${netRev>0?` <span style="font-family:'DM Serif Display',serif;font-weight:700;color:var(--pk);font-size:.85rem">${fmtMoney(netRev)}</span>`:''}`
     : '';
   listEl.innerHTML=list.length?list.map(b=>bkItemHTML(b)).join(''):'<div class="empty-msg">예약이 없습니다</div>';
 }
