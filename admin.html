@@ -669,12 +669,11 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
               <table style="width:100%;border-collapse:collapse;min-width:400px" id="rvLedgerTable">
                 <thead>
                   <tr style="background:var(--bg2)">
-                    <th style="padding:9px 10px;color:var(--sub);font-weight:600;font-size:.72rem;white-space:nowrap;border-bottom:1.5px solid var(--ln);text-align:left">날짜</th>
-                    <th style="padding:9px 8px;color:var(--sub);font-weight:600;font-size:.72rem;border-bottom:1.5px solid var(--ln);text-align:left">분류</th>
-                    <th style="padding:9px 8px;color:var(--sub);font-weight:600;font-size:.72rem;border-bottom:1.5px solid var(--ln);text-align:left">내용</th>
-                    <th style="padding:9px 10px;color:var(--sub);font-weight:600;font-size:.72rem;border-bottom:1.5px solid var(--ln);text-align:right;white-space:nowrap">금액</th>
-                    <th style="padding:9px 8px;color:var(--sub);font-weight:600;font-size:.72rem;border-bottom:1.5px solid var(--ln);text-align:left">비고</th>
-                    <th style="padding:9px 6px;border-bottom:1.5px solid var(--ln)"></th>
+                    <th style="padding:8px 6px;color:var(--sub);font-weight:600;font-size:.72rem;white-space:nowrap;border-bottom:1.5px solid var(--ln);text-align:left;width:62px">날짜</th>
+                    <th style="padding:8px 4px;color:var(--sub);font-weight:600;font-size:.72rem;border-bottom:1.5px solid var(--ln);text-align:left;width:36px">분류</th>
+                    <th style="padding:8px 6px;color:var(--sub);font-weight:600;font-size:.72rem;border-bottom:1.5px solid var(--ln);text-align:left">내용</th>
+                    <th style="padding:8px 8px;color:var(--sub);font-weight:600;font-size:.72rem;border-bottom:1.5px solid var(--ln);text-align:right;white-space:nowrap;width:80px">금액</th>
+                    <th style="padding:8px 4px;border-bottom:1.5px solid var(--ln);width:28px"></th>
                   </tr>
                 </thead>
                 <tbody id="rvLedgerBody"></tbody>
@@ -1323,23 +1322,27 @@ function renderDash(){
   const cnt0=bookings.filter(b=>b.date===todayStr&&b.status!=='cancelled'&&timeToMin(b.startTime)>nowMin).length;
   const cnt1=bookings.filter(b=>b.status==='pending').length;
   const calCnt=bookings.filter(b=>b.date.startsWith(calMonthStr)&&b.status!=='cancelled').length;
-  const rev3=bookings.filter(b=>b.date.startsWith(calMonthStr)&&(b.status==='done'||b.status==='confirmed')).reduce((a,b)=>a+b.totalPrice,0);
+  // 3번째 칸: 순매출
+  const rev2=bookings.filter(b=>b.date.startsWith(calMonthStr)&&(b.status==='done'||b.status==='confirmed')).reduce((a,b)=>a+b.totalPrice,0);
+  // 4번째 칸: 실수령액 (순매출 - 해당 달 수수료)
+  const commTotal=costEntries.filter(e=>e.id&&String(e.id).startsWith('comm-bk-')&&e.date&&e.date.startsWith(calMonthStr)).reduce((a,e)=>a+e.amount,0);
+  const rev3=rev2-commTotal;
 
   document.getElementById('kpi0').textContent=cnt0;
   document.getElementById('kpi1').textContent=cnt1;
-  document.getElementById('kpi2').textContent=calCnt;
+  document.getElementById('kpi2').textContent=rev2===0?'0':fmtMoney(rev2).replace('원','');
   document.getElementById('kpi3').textContent=rev3===0?'0':fmtMoney(rev3).replace('원','');
 
   // 라벨 업데이트
   const l2=document.getElementById('kpi-l2');
   const l3=document.getElementById('kpi-l3');
-  if(l2) l2.textContent=isCurrentMonth?'이번 달':` ${dCalM+1}월`;
-  if(l3) l3.textContent=isCurrentMonth?'이번달 매출':`${dCalM+1}월 매출`;
+  if(l2) l2.textContent=isCurrentMonth?'이번달 순매출':`${dCalM+1}월 순매출`;
+  if(l3) l3.textContent=isCurrentMonth?'이번달 실수령':`${dCalM+1}월 실수령`;
 
   // 0이면 클릭 불가
   [0,1,2,3].forEach(i=>{
     const card=document.getElementById('kpi-card'+i);
-    const cnt=[cnt0,cnt1,calCnt,rev3][i];
+    const cnt=[cnt0,cnt1,rev2,rev3][i];
     if(card){
       card.style.opacity=cnt===0?'0.5':'1';
       card.style.cursor=cnt===0?'default':'pointer';
@@ -3098,10 +3101,10 @@ function drawRvChart(type, incomeRows, costRows){
     drawPie(ctx,W,H,Object.entries(svcMap),colors);
 
   } else if(type==='costpie'){
-    // 비용 항목별 파이
+    // 비용 항목별 파이 (수수료는 % 상관없이 '수수료' 하나로 묶기)
     const costMap={};
     costRows.forEach(e=>{
-      const key=e.desc||'기타';
+      const key = (e.id&&String(e.id).startsWith('comm-bk-')) ? '수수료' : (e.desc||'기타');
       costMap[key]=(costMap[key]||0)+e.amount;
     });
     const costColors=['#AD3535','#C4534A','#D4756A','#E8998A','#C46060','#8A2525','#F0B0A0','#B07070'];
@@ -3194,7 +3197,7 @@ function renderLedger(monthStr){
   }
 
   if(!all.length){
-    body.innerHTML=`<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--sub2);font-size:.8rem">이번 달 내역이 없습니다</td></tr>`;
+    body.innerHTML=`<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--sub2);font-size:.8rem">이번 달 내역이 없습니다</td></tr>`;
     return;
   }
 
@@ -3205,21 +3208,24 @@ function renderLedger(monthStr){
       : `<span style="color:var(--red)">${Number(r.amount).toLocaleString()}원</span>`;
     const dateShort = r.date.slice(2); // yy-mm-dd
     const delBtn = isIncome ? `<button onclick="deleteIncomeEntry('${r.id}')" style="background:none;border:none;color:var(--sub2);cursor:pointer;font-size:.75rem;padding:2px 4px">✕</button>` : `<button onclick="deleteCostEntry(${r.id})" style="background:none;border:none;color:var(--sub2);cursor:pointer;font-size:.75rem;padding:2px 4px">✕</button>`;
+    const memoTxt = r.discountMemo||r.memo||'';
     return `<tr style="border-bottom:1px solid var(--ln);background:${isIncome?'var(--w)':'#FDFAFA'}">
-      <td style="padding:9px 10px;white-space:nowrap;font-size:.74rem;color:var(--sub);font-family:'DM Sans',sans-serif">${dateShort}</td>
-      <td style="padding:9px 8px">
-        <span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:.64rem;font-weight:600;background:${isIncome?'var(--grn-bg)':'var(--red-bg)'};color:${isIncome?'var(--grn)':'var(--red)'}">${isIncome?'수익':'비용'}</span>
+      <td style="padding:8px 6px;white-space:nowrap;font-size:.72rem;color:var(--sub);font-family:'DM Sans',sans-serif;width:62px">${dateShort}</td>
+      <td style="padding:8px 4px;width:36px">
+        <span style="display:inline-block;padding:2px 5px;border-radius:20px;font-size:.60rem;font-weight:600;background:${isIncome?'var(--grn-bg)':'var(--red-bg)'};color:${isIncome?'var(--grn)':'var(--red)'};white-space:nowrap">${isIncome?'수익':'비용'}</span>
       </td>
-      <td style="padding:9px 8px;font-size:.78rem;font-weight:${isIncome?'500':'400'};color:var(--tx);max-width:130px;word-break:break-all">${r.desc}</td>
-      <td style="padding:9px 10px;text-align:right;font-size:.82rem;font-weight:600;white-space:nowrap;color:${isIncome?'var(--tx)':'var(--red)'};font-family:'DM Serif Display',serif">${amtStr}</td>
-      <td style="padding:9px 8px;font-size:.70rem;color:var(--sub2);max-width:80px;word-break:break-all">${r.discountMemo||r.memo||''}</td>
-      <td style="padding:9px 6px;text-align:center">${delBtn}</td>
+      <td style="padding:8px 6px;font-size:.76rem;font-weight:${isIncome?'500':'400'};color:var(--tx)">
+        <div style="word-break:keep-all;line-height:1.4">${r.desc}</div>
+        ${memoTxt?`<div style="font-size:.68rem;color:var(--sub2);margin-top:2px;word-break:break-all">${memoTxt}</div>`:''}
+      </td>
+      <td style="padding:8px 8px;text-align:right;font-size:.80rem;font-weight:600;white-space:nowrap;color:${isIncome?'var(--tx)':'var(--red)'};font-family:'DM Serif Display',serif;width:80px">${amtStr}</td>
+      <td style="padding:8px 4px;text-align:center;width:28px">${delBtn}</td>
     </tr>`;
   }).join('');
 
   // 합계 행
   body.innerHTML += `<tr style="border-top:2px solid var(--ln);background:var(--bg2)">
-    <td colspan="2" style="padding:10px 10px;font-size:.74rem;font-weight:700;color:var(--tx)">이번 달 합계</td>
+    <td colspan="2" style="padding:10px 8px;font-size:.74rem;font-weight:700;color:var(--tx)">이번 달 합계</td>
     <td style="padding:10px 8px;font-size:.71rem;color:var(--sub);line-height:1.9">
       ${totalOriginal>0?`매출 ${Number(totalOriginal).toLocaleString()}원`:''}
       ${totalDiscount>0?`<br>할인 −${Number(totalDiscount).toLocaleString()}원`:''}
@@ -3229,7 +3235,7 @@ function renderLedger(monthStr){
       ${otherCosts>0?`<br>기타비용 −${Number(otherCosts).toLocaleString()}원`:''}
     </td>
     <td style="padding:10px 10px;text-align:right;font-size:.9rem;font-weight:700;color:${totalProfit>=0?'var(--grn)':'var(--red)'};font-family:'DM Serif Display',serif">${Number(totalProfit).toLocaleString()}원</td>
-    <td colspan="2" style="padding:10px 8px;font-size:.68rem;color:var(--sub2)">순이익</td>
+    <td style="padding:10px 4px;font-size:.68rem;color:var(--sub2)">순이익</td>
   </tr>`;
 }
 
