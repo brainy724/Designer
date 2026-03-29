@@ -1016,7 +1016,8 @@ async function sbFetch(table, options={}){
 async function saveSettingsToSupa(){
   const data = {
     services, open:OPEN, close:CLOSE,
-    offDays:[...offDays], recurringDows:[...recurringDows], dayBlocks
+    offDays:[...offDays], recurringDows:[...recurringDows], dayBlocks,
+    bookPw: localStorage.getItem('sera_bookPw')||''
   };
   await sbFetch('settings', {
     method:'POST',
@@ -1296,6 +1297,10 @@ function saveBookPw(){
   else { localStorage.removeItem('sera_bookPw'); show('✅ 비밀번호가 해제됐어요.',true); }
   document.getElementById('bookPwSetting').value='';
   document.getElementById('bookPwConfirm').value='';
+  // Supabase에도 저장 (카카오 인앱브라우저 대응)
+  saveSettingsToSupa().catch(()=>{});
+  // 현재 상태 업데이트
+  loadBkSettings();
 }
 
 function changePassword(){
