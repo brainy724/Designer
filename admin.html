@@ -761,18 +761,6 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
             <button class="btn btn-dark" onclick="saveSettings()">저장</button>
           </div>
           <div class="pc">
-            <div class="pc-title">🔑 예약 페이지 비밀번호</div>
-            <div style="font-size:.74rem;color:var(--sub);margin-bottom:10px">설정하면 고객이 예약하기 버튼 클릭 시 비밀번호를 입력해야 해요. 비워두면 비밀번호 없이 바로 입장해요.</div>
-            <div class="field"><label>비밀번호 <span style="font-size:.7rem;color:var(--sub);font-weight:400">(비워두면 비밀번호 없음)</span></label>
-              <input type="password" id="bookPwSetting" placeholder="비밀번호 입력 (비워두면 해제)">
-            </div>
-            <div class="field"><label>비밀번호 확인</label>
-              <input type="password" id="bookPwConfirm" placeholder="비밀번호 재입력">
-            </div>
-            <div id="bookPwMsg2" style="display:none;border-radius:7px;padding:8px 11px;font-size:.75rem;margin-top:6px"></div>
-            <button class="btn btn-dark" onclick="saveBookPw()" style="width:100%">💾 예약 비밀번호 저장</button>
-          </div>
-          <div class="pc">
             <div class="pc-title">비밀번호 변경</div>
             <div class="field"><label>현재 비밀번호</label><input type="password" id="pwCurrent" placeholder="현재 비밀번호"></div>
             <div class="field"><label>새 비밀번호</label><input type="password" id="pwNew" placeholder="새 비밀번호 (4자 이상)"></div>
@@ -1016,8 +1004,7 @@ async function sbFetch(table, options={}){
 async function saveSettingsToSupa(){
   const data = {
     services, open:OPEN, close:CLOSE,
-    offDays:[...offDays], recurringDows:[...recurringDows], dayBlocks,
-    bookPw: localStorage.getItem('sera_bookPw')||''
+    offDays:[...offDays], recurringDows:[...recurringDows], dayBlocks
   };
   await sbFetch('settings', {
     method:'POST',
@@ -1280,29 +1267,6 @@ function saveHours(){
   setTimeout(()=>{msg.style.display='none';},3000);
 }
 
-function saveBookPw(){
-  const pw = document.getElementById('bookPwSetting').value;
-  const confirm = document.getElementById('bookPwConfirm').value;
-  const msg = document.getElementById('bookPwMsg2');
-  const show = (txt, ok) => {
-    msg.style.display='block';
-    msg.style.background=ok?'var(--grn-bg)':'var(--red-bg)';
-    msg.style.color=ok?'var(--grn)':'var(--red)';
-    msg.textContent=txt;
-    setTimeout(()=>msg.style.display='none',3000);
-  };
-  if(pw && pw!==confirm){ show('❌ 비밀번호가 일치하지 않아요.',false); return; }
-  // localStorage에 저장 (index.html에서 읽음)
-  if(pw){ localStorage.setItem('sera_bookPw', pw); show('✅ 예약 비밀번호가 설정됐어요!',true); }
-  else { localStorage.removeItem('sera_bookPw'); show('✅ 비밀번호가 해제됐어요.',true); }
-  document.getElementById('bookPwSetting').value='';
-  document.getElementById('bookPwConfirm').value='';
-  // Supabase에도 저장 (카카오 인앱브라우저 대응)
-  saveSettingsToSupa().catch(()=>{});
-  // 현재 상태 업데이트
-  loadBkSettings();
-}
-
 function changePassword(){
   const cur=document.getElementById('pwCurrent').value;
   const nw=document.getElementById('pwNew').value;
@@ -1370,7 +1334,7 @@ function renderDash(){
   const l2=document.getElementById('kpi-l2');
   const l3=document.getElementById('kpi-l3');
   if(l2) l2.textContent=isCurrentMonth?'이번 달':` ${dCalM+1}월`;
-  if(l3) l3.textContent=isCurrentMonth?'이번달 순매출':`${dCalM+1}월 순매출`;
+  if(l3) l3.textContent=isCurrentMonth?'이번달 매출':`${dCalM+1}월 매출`;
 
   // 0이면 클릭 불가
   [0,1,2,3].forEach(i=>{
@@ -1478,14 +1442,10 @@ function renderDashList(ds){
   // 항상 선택된 날짜 기준
   labelEl.textContent=ds===todayStr?'오늘 예약':fmtKo(ds);
   const list=bookings.filter(b=>b.date===ds&&b.status!=='cancelled').sort((a,z)=>a.startTime.localeCompare(z.startTime));
-  // 순매출: totalPrice(할인 적용된 실제 금액) 합산, 확정+완료만
-  const confirmedList = list.filter(b=>b.status==='done'||b.status==='confirmed');
-  const origTotal = confirmedList.reduce((a,b)=>a+b.services.reduce((x,s)=>x+(s.price||0),0),0);
-  const paidTotal = confirmedList.reduce((a,b)=>a+b.totalPrice,0);
-  const netRev = paidTotal; // 이미 할인 적용된 금액
-  const discountTotal = origTotal - paidTotal;
+  // 취소 제외 전체 건수 및 금액 (pending 포함)
+  const rev=list.reduce((a,b)=>a+b.totalPrice,0);
   countEl.innerHTML=list.length
-    ? `<span style="font-weight:700;color:var(--tx)">${confirmedList.length}건</span>${netRev>0?` <span style="font-family:'DM Serif Display',serif;font-weight:700;color:var(--pk);font-size:.85rem">${fmtMoney(netRev)}</span>`:''}`
+    ? `<span style="font-weight:700;color:var(--tx)">${list.length}건</span>${rev>0?` <span style="font-family:'DM Serif Display',serif;font-weight:700;color:var(--pk);font-size:.85rem">${fmtMoney(rev)}</span>`:''}`
     : '';
   listEl.innerHTML=list.length?list.map(b=>bkItemHTML(b)).join(''):'<div class="empty-msg">예약이 없습니다</div>';
 }
@@ -1535,7 +1495,20 @@ function openBkModal(id){
       <span style="font-size:.78rem;color:var(--sub)">원</span>
       <button class="btn-outline" onclick="applyDiscount(${id})" style="white-space:nowrap">적용</button>
     </div>
-    <div style="font-size:.72rem;color:var(--sub);margin-top:4px">원래 금액: ${fmtMoney(b.totalPrice)}</div>`;
+    <div style="font-size:.72rem;color:var(--sub);margin-top:4px">원래 금액: ${fmtMoney(b.totalPrice)}</div>
+    <div class="msec" style="margin-top:8px">수수료 계산</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+      <span style="font-size:.78rem;color:var(--sub);flex-shrink:0">수수료율</span>
+      <input type="number" id="commRate-${id}" placeholder="%" min="0" max="100" step="0.1"
+        value="${b.commRate||''}"
+        style="width:72px;padding:7px 10px;border:1.5px solid var(--ln);border-radius:7px;font-size:.82rem;font-family:'DM Sans','Noto Sans KR',sans-serif;text-align:center"
+        oninput="calcComm(${id})">
+      <span style="font-size:.78rem;color:var(--sub)">%</span>
+      <button class="btn-outline" onclick="saveComm(${id})" style="white-space:nowrap;flex-shrink:0">저장</button>
+    </div>
+    <div id="commResult-${id}" style="font-size:.76rem;padding:9px 11px;border-radius:7px;background:var(--bg2);line-height:1.9;display:${b.commRate?'block':'none'}">
+      ${b.commRate?`순매출 ${fmtMoney(b.totalPrice)}<br>수수료 (${b.commRate}%) −${fmtMoney(Math.round(b.totalPrice*b.commRate/100))}<br><b style="color:var(--pk)">실수령액 ${fmtMoney(b.totalPrice-Math.round(b.totalPrice*b.commRate/100))}</b>`:''}
+    </div>`;
 
   // time adjust
   const taHTML=`
@@ -2618,6 +2591,60 @@ async function deleteBookingPermanent(id){
   renderCustomers(document.getElementById('custSearch')?.value||'');
 }
 
+// 수수료 실시간 계산 (입력할 때마다)
+function calcComm(id){
+  const b=bookings.find(x=>x.id===id);
+  if(!b) return;
+  const rate=parseFloat(document.getElementById('commRate-'+id)?.value)||0;
+  const el=document.getElementById('commResult-'+id);
+  if(!el) return;
+  if(rate>0){
+    const comm=Math.round(b.totalPrice*rate/100);
+    const net=b.totalPrice-comm;
+    el.style.display='block';
+    el.innerHTML=`순매출 ${fmtMoney(b.totalPrice)}<br>수수료 (${rate}%) −${fmtMoney(comm)}<br><b style="color:var(--pk)">실수령액 ${fmtMoney(net)}</b>`;
+  } else {
+    el.style.display='none';
+  }
+}
+
+// 수수료 저장 + 판관비로 가계부 자동 등록
+async function saveComm(id){
+  const b=bookings.find(x=>x.id===id);
+  if(!b) return;
+  const rate=parseFloat(document.getElementById('commRate-'+id)?.value)||0;
+  if(!rate){alert('수수료율을 입력해주세요.');return;}
+  const comm=Math.round(b.totalPrice*rate/100);
+  const net=b.totalPrice-comm;
+  b.commRate=rate;
+  saveData();
+  // Supabase 업데이트
+  try{
+    await sbFetch(`bookings?id=eq.${id}`,{
+      method:'PATCH',prefer:'return=minimal',
+      body:JSON.stringify({comm_rate:rate})
+    });
+  }catch(e){}
+  // 가계부 판관비 등록 (같은 예약 수수료는 덮어쓰기)
+  const commEntryId='comm-bk-'+id;
+  costEntries=costEntries.filter(e=>e.id!==commEntryId);
+  costEntries.push({
+    id:commEntryId,
+    date:b.date,
+    desc:`수수료 ${rate}% (${b.name} / ${b.services.map(s=>s.name).join(', ')})`,
+    amount:comm,
+    memo:`순매출 ${fmtMoney(b.totalPrice)} × ${rate}% = ${fmtMoney(comm)}`
+  });
+  saveCosts();
+  alert(`✅ 수수료 저장!
+수수료: ${fmtMoney(comm)}
+실수령액: ${fmtMoney(net)}
+
+가계부 판관비에 자동 등록됐어요.`);
+  closeModal('bkModal');
+  renderDash();
+}
+
 // 할인가 적용
 async function applyDiscount(id){
   const inp = document.getElementById('discountPrice-'+id);
@@ -2791,15 +2818,6 @@ function saveBkInterval(){
 }
 
 function loadBkSettings(){
-  // 예약 비밀번호 현재 상태 표시
-  const curPw = localStorage.getItem('sera_bookPw')||'';
-  const pwInfo = document.getElementById('bookPwMsg2');
-  if(pwInfo){
-    pwInfo.style.display='block';
-    pwInfo.style.background='var(--bg2)';
-    pwInfo.style.color='var(--sub)';
-    pwInfo.textContent = curPw ? `현재 비밀번호 설정됨 (${curPw.length}자리)` : '현재 비밀번호 없음 (자유 입장)';
-  }
   // 주기 복원
   const interval = localStorage.getItem('sera_bkInterval')||'7';
   const sel = document.getElementById('bk-interval');
@@ -3160,13 +3178,19 @@ function renderLedger(monthStr){
   const totalIncome = incomeRows.reduce((a,r)=>a+r.amount,0);
   const totalDiscount = totalOriginal - totalIncome;
   const totalCost = costRows.reduce((a,r)=>a+r.amount,0);
+  // 수수료 비용만 따로 집계
+  const commCosts = costRows.filter(r=>r.id&&String(r.id).startsWith('comm-bk-')).reduce((a,r)=>a+r.amount,0);
+  const otherCosts = totalCost - commCosts;
+  const totalNetReceivable = totalIncome - commCosts;
   const totalProfit = totalIncome - totalCost;
 
   if(summary){
-    summary.innerHTML =
-      `<span style="color:var(--sub)">순매출 </span><b style="color:var(--pk-dark)">${Number(totalIncome).toLocaleString()}원</b>`+
-      (totalCost>0?` <span style="color:var(--sub)"> · 비용 </span><b style="color:var(--red)">${Number(totalCost).toLocaleString()}원</b>`:'') +
-      ` <span style="color:var(--sub)"> · 순이익 </span><b style="color:${totalProfit>=0?'var(--grn)':'var(--red)'}">${Number(totalProfit).toLocaleString()}원</b>`;
+    let s = `<span style="color:var(--sub)">순매출 </span><b style="color:var(--pk-dark)">${Number(totalIncome).toLocaleString()}원</b>`;
+    if(commCosts>0) s += ` <span style="color:var(--sub)"> · 수수료 </span><b style="color:var(--red)">-${Number(commCosts).toLocaleString()}원</b>`;
+    if(commCosts>0) s += ` <span style="color:var(--sub)"> · 실수령 </span><b style="color:var(--pk)">${Number(totalNetReceivable).toLocaleString()}원</b>`;
+    if(otherCosts>0) s += ` <span style="color:var(--sub)"> · 기타비용 </span><b style="color:var(--red)">-${Number(otherCosts).toLocaleString()}원</b>`;
+    s += ` <span style="color:var(--sub)"> · 순이익 </span><b style="color:${totalProfit>=0?'var(--grn)':'var(--red)'}">${Number(totalProfit).toLocaleString()}원</b>`;
+    summary.innerHTML = s;
   }
 
   if(!all.length){
@@ -3196,10 +3220,13 @@ function renderLedger(monthStr){
   // 합계 행
   body.innerHTML += `<tr style="border-top:2px solid var(--ln);background:var(--bg2)">
     <td colspan="2" style="padding:10px 10px;font-size:.74rem;font-weight:700;color:var(--tx)">이번 달 합계</td>
-    <td style="padding:10px 8px;font-size:.71rem;color:var(--sub);line-height:1.7">
+    <td style="padding:10px 8px;font-size:.71rem;color:var(--sub);line-height:1.9">
       ${totalOriginal>0?`매출 ${Number(totalOriginal).toLocaleString()}원`:''}
-      ${totalDiscount>0?`<br>할인 -${Number(totalDiscount).toLocaleString()}원`:''}
-      ${totalCost>0?`<br>비용 ${Number(totalCost).toLocaleString()}원`:''}
+      ${totalDiscount>0?`<br>할인 −${Number(totalDiscount).toLocaleString()}원`:''}
+      <br>순매출 <b>${Number(totalIncome).toLocaleString()}원</b>
+      ${commCosts>0?`<br>수수료 −${Number(commCosts).toLocaleString()}원`:''}
+      ${commCosts>0?`<br><b style="color:var(--pk)">실수령 ${Number(totalNetReceivable).toLocaleString()}원</b>`:''}
+      ${otherCosts>0?`<br>기타비용 −${Number(otherCosts).toLocaleString()}원`:''}
     </td>
     <td style="padding:10px 10px;text-align:right;font-size:.9rem;font-weight:700;color:${totalProfit>=0?'var(--grn)':'var(--red)'};font-family:'DM Serif Display',serif">${Number(totalProfit).toLocaleString()}원</td>
     <td colspan="2" style="padding:10px 8px;font-size:.68rem;color:var(--sub2)">순이익</td>
