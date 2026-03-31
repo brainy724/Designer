@@ -1107,6 +1107,9 @@ function saveSettings(){
   if(o>=c){msg.style.display='block';msg.style.background='var(--red-bg)';msg.style.color='var(--red)';msg.textContent='⚠️ 마감 시간이 시작 시간보다 늦어야 해요.';return;}
   OPEN=o; CLOSE=c;
   saveData(); saveSettingsToSupa().catch(()=>{});
+  // 시술·영업 패널 input도 동기화
+  const o2=document.getElementById('set-open2'); if(o2) o2.value=OPEN;
+  const c2=document.getElementById('set-close2'); if(c2) c2.value=CLOSE;
   msg.style.display='block';
   msg.style.background='var(--grn-bg)';
   msg.style.color='var(--grn)';
@@ -1260,6 +1263,9 @@ function saveHours(){
   }
   OPEN=o; CLOSE=c;
   saveData(); saveSettingsToSupa().catch(()=>{});
+  // 설정 패널 input도 동기화
+  const o1=document.getElementById('set-open'); if(o1) o1.value=OPEN;
+  const c1=document.getElementById('set-close'); if(c1) c1.value=CLOSE;
   msg.style.display='block';
   msg.style.background='var(--grn-bg)';msg.style.color='var(--grn)';
   msg.textContent=`✅ 저장됐어요! 예약 가능 시간: ${OPEN} ~ ${CLOSE}`;
@@ -1433,7 +1439,7 @@ async function approveReq(id){
   }
   renderDash();
 }
-function rejectReq(id){bookings.find(x=>x.id===id).status='confirmed';renderDash();}
+function rejectReq(id){bookings.find(x=>x.id===id).status='confirmed';saveData();updateBookingStatusSupa(id,'confirmed').catch(()=>{});renderDash();}
 
 function renderDCal(){renderCal('dCalGrid','dashCalTitle',dCalY,dCalM,adminSelDate,'dPickDate',true,true);document.getElementById('dCalPrev').onclick=()=>navCal('d',-1);document.getElementById('dCalNext').onclick=()=>navCal('d',1);}
 function dPickDate(ds){adminSelDate=ds;renderDCal();renderDashList(ds);}

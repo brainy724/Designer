@@ -1154,9 +1154,20 @@ function pickTime(t){sel.startTime=t;sel.endTime=addTimeH(t,getTotalDurH());rend
 
 function renderS3Sum(){
   const selArr=services.filter(s=>selSvcIds.has(s.id));
-  const totalPrice=selArr.reduce((a,s)=>a+s.price,0);
+  const totalPrice=selArr.reduce((a,s)=>{
+    const optIdx=selExtraOpts[s.id]||0;
+    const extra=(s.extraOpts&&s.extraOpts[optIdx])?s.extraOpts[optIdx].price:0;
+    return a+s.price+extra;
+  },0);
   const durH=getTotalDurH();
-  const rows=selArr.map(s=>`<div class="sum-row"><span class="sum-k">${lang==='en'?(s.name.en||s.name.ko):s.name.ko}</span><span class="sum-v">${fmtMoney(s.price)}</span></div>`).join('');
+  const rows=selArr.map(s=>{
+    const optIdx=selExtraOpts[s.id]||0;
+    const opt=s.extraOpts&&s.extraOpts[optIdx];
+    const extra=opt?opt.price:0;
+    const optLabel=opt&&opt.label?' ('+opt.label+')':'';
+    const nm=lang==='en'?(s.name.en||s.name.ko):s.name.ko;
+    return `<div class="sum-row"><span class="sum-k">${nm}${optLabel}</span><span class="sum-v">${fmtMoney(s.price+extra)}</span></div>`;
+  }).join('');
   document.getElementById('s3sum').innerHTML=
     rows+
     `<div class="sum-row"><span class="sum-k">${lang==='en'?'Date':'날짜'}</span><span class="sum-v">${fmtDate(sel.date)}</span></div>`+
@@ -1191,7 +1202,7 @@ async function submitBooking(){
       const optIdx=selExtraOpts[s.id]||0;
       const opt=s.extraOpts&&s.extraOpts[optIdx];
       const extra=opt?opt.price:0;
-      const optLabel=opt&&opt.label?` (${opt.label})`:'';;
+      const optLabel=opt&&opt.label?` (${opt.label})`:'';
       return {id:s.id,name:(lang==='en'?(s.name.en||s.name.ko):s.name.ko)+optLabel,price:s.price+extra,durH:s.durH};
     }),
     date:sel.date,startTime:sel.startTime,endTime:sel.endTime,
