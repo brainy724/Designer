@@ -611,6 +611,7 @@ const TODAY = new Date();
 const todayStr = df(TODAY);
 let lang = 'ko';
 let BOOK_PW = ''; // 예약 페이지 비밀번호 (Supabase에서 로드)
+let _settingsLoaded = false; // Supabase 설정 로드 완료 여부
 
 let services = [
   {id:1,name:{ko:'커트',en:'Cut'},price:35000,durH:1,desc:{ko:'스타일링 포함',en:'Incl. styling'},cat:'커트'},
@@ -815,6 +816,7 @@ async function loadSettingsFromSupa(){
   if(data.recurringDows) recurringDows = new Set(data.recurringDows);
   if(data.dayBlocks) dayBlocks = data.dayBlocks;
   if(data.bookPw !== undefined) BOOK_PW = data.bookPw||'';
+  _settingsLoaded = true;
   return true;
 }
 
@@ -906,7 +908,14 @@ function goHome(){
   document.querySelectorAll('.ttab').forEach(el=>el.classList.remove('on'));
   document.getElementById('v-home').classList.add('on');
 }
-function goBook(){
+async function goBook(){
+  // Supabase 설정 로드가 안 끝났으면 최대 3초 대기
+  if(!_settingsLoaded){
+    for(let i=0;i<30;i++){
+      await new Promise(r=>setTimeout(r,100));
+      if(_settingsLoaded) break;
+    }
+  }
   const pw = BOOK_PW || localStorage.getItem('sera_bookPw')||'';
   if(pw){
     const modal = document.getElementById('bookPwModal');
