@@ -792,7 +792,8 @@ async function saveSettingsToSupa(){
     open: OPEN, close: CLOSE,
     offDays: [...offDays],
     recurringDows: [...recurringDows],
-    dayBlocks: dayBlocks
+    dayBlocks: dayBlocks,
+    bookPw: BOOK_PW
   };
   // upsert (있으면 업데이트, 없으면 삽입)
   await sbFetch('settings', {
