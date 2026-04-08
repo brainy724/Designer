@@ -751,6 +751,16 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
             <div class="tog-row"><div><div class="tog-l">재방문 알림 (60일)</div><div class="tog-desc">마지막 방문 60일 초과 시</div></div><button class="tog" onclick="this.classList.toggle('on')"></button></div>
           </div>
           <div class="pc" style="margin-bottom:12px">
+            <div class="pc-title">🔑 예약 페이지 비밀번호</div>
+            <div style="font-size:.74rem;color:var(--sub);margin-bottom:10px">설정하면 고객이 예약 버튼 클릭 시 비밀번호를 입력해야 해요. 비워두면 바로 입장돼요.</div>
+            <div id="bookPwStatus" style="font-size:.74rem;padding:7px 10px;border-radius:7px;margin-bottom:10px;background:var(--bg2);border:1px solid var(--ln)"></div>
+            <div class="field"><label>비밀번호 <span style="font-size:.7rem;color:var(--sub);font-weight:400">(비워두면 해제)</span></label>
+              <input type="text" id="bookPwSetting" placeholder="비밀번호 입력" autocomplete="off">
+            </div>
+            <div id="bookPwMsg2" style="display:none;border-radius:7px;padding:8px 11px;font-size:.75rem;margin-top:6px"></div>
+            <button class="btn btn-dark" onclick="saveBookPw()">저장</button>
+          </div>
+          <div class="pc" style="margin-bottom:12px">
             <div class="pc-title">운영 정보</div>
             <div class="field"><label>디자이너 이름</label><input id="set-name" value="Designer Sera"></div>
             <div class="field"><label>연락처</label><input id="set-phone" placeholder="010********"></div>
@@ -999,11 +1009,12 @@ async function sbFetch(table, options={}){
 }
 
 // 모든 예약 로드
-// 설정 Supabase 저장 (시술메뉴, 영업시간, 휴무일)
+// 설정 Supabase 저장 (시술메뉴, 영업시간, 휴무일, 예약비번)
 async function saveSettingsToSupa(){
   const data = {
     services, open:OPEN, close:CLOSE,
-    offDays:[...offDays], recurringDows:[...recurringDows], dayBlocks
+    offDays:[...offDays], recurringDows:[...recurringDows], dayBlocks,
+    bookPw: localStorage.getItem('sera_bookPw')||''
   };
   await sbFetch('settings', {
     method:'POST',
@@ -1099,6 +1110,44 @@ function loadData(){
     if(hr){const h=JSON.parse(hr);OPEN=h.open;CLOSE=h.close;}
   }catch(e){}
 }
+async function saveBookPw(){
+  const pw = document.getElementById('bookPwSetting').value.trim();
+  const msg = document.getElementById('bookPwMsg2');
+  const show = (txt, ok) => {
+    msg.style.display='block';
+    msg.style.background=ok?'var(--grn-bg)':'var(--red-bg)';
+    msg.style.color=ok?'var(--grn)':'var(--red)';
+    msg.textContent=txt;
+    setTimeout(()=>msg.style.display='none',3000);
+  };
+  if(pw){ localStorage.setItem('sera_bookPw', pw); }
+  else { localStorage.removeItem('sera_bookPw'); }
+  // Supabase에도 저장
+  try {
+    await saveSettingsToSupa();
+    show(pw ? '✅ 예약 비밀번호가 설정됐어요!' : '✅ 비밀번호가 해제됐어요.', true);
+  } catch(e){
+    show('❌ 저장 실패. 다시 시도해주세요.', false);
+  }
+  document.getElementById('bookPwSetting').value='';
+  updateBookPwStatus();
+}
+
+function updateBookPwStatus(){
+  const el = document.getElementById('bookPwStatus');
+  if(!el) return;
+  const pw = localStorage.getItem('sera_bookPw')||'';
+  if(pw){
+    el.style.background='var(--pk-light)';
+    el.style.borderColor='var(--pk-mid)';
+    el.innerHTML='🔒 현재 비밀번호: <b>'+pw+'</b>';
+  } else {
+    el.style.background='var(--bg2)';
+    el.style.borderColor='var(--ln)';
+    el.innerHTML='🔓 비밀번호 미설정 (누구나 예약 가능)';
+  }
+}
+
 function saveSettings(){
   const o=document.getElementById('set-open').value;
   const c=document.getElementById('set-close').value;
@@ -1197,6 +1246,10 @@ async function initAdmin(){
       if(data.offDays) offDays = new Set(data.offDays);
       if(data.recurringDows) recurringDows = new Set(data.recurringDows);
       if(data.dayBlocks) dayBlocks = data.dayBlocks;
+      if(data.bookPw !== undefined){
+        if(data.bookPw) localStorage.setItem('sera_bookPw', data.bookPw);
+        else localStorage.removeItem('sera_bookPw');
+      }
       saveData();
     }
   }catch(e){}
@@ -1311,6 +1364,7 @@ function showPanel(id,btn){
   if(id==='settings'){
     document.getElementById('set-open').value=OPEN;
     document.getElementById('set-close').value=CLOSE;
+    updateBookPwStatus();
   }
   if(id==='newbk')initNbForm();
 }
