@@ -804,20 +804,25 @@ async function saveSettingsToSupa(){
 
 // 설정 Supabase에서 불러오기
 async function loadSettingsFromSupa(){
-  const res = await sbFetch('settings?key=eq.app_settings');
-  if(!res || !res.length) return false;
-  const data = res[0].value;
-  if(data.services && data.services.length){
-    services = data.services.map(s=>({...s, cat:s.cat||''}));
+  try {
+    const res = await sbFetch('settings?key=eq.app_settings');
+    if(!res || !res.length){ _settingsLoaded = true; return false; }
+    const data = res[0].value;
+    if(data.services && data.services.length){
+      services = data.services.map(s=>({...s, cat:s.cat||''}));
+    }
+    if(data.open) OPEN = data.open;
+    if(data.close) CLOSE = data.close;
+    if(data.offDays) offDays = new Set(data.offDays);
+    if(data.recurringDows) recurringDows = new Set(data.recurringDows);
+    if(data.dayBlocks) dayBlocks = data.dayBlocks;
+    if(data.bookPw !== undefined) BOOK_PW = data.bookPw||'';
+    _settingsLoaded = true;
+    return true;
+  } catch(e) {
+    _settingsLoaded = true;
+    return false;
   }
-  if(data.open) OPEN = data.open;
-  if(data.close) CLOSE = data.close;
-  if(data.offDays) offDays = new Set(data.offDays);
-  if(data.recurringDows) recurringDows = new Set(data.recurringDows);
-  if(data.dayBlocks) dayBlocks = data.dayBlocks;
-  if(data.bookPw !== undefined) BOOK_PW = data.bookPw||'';
-  _settingsLoaded = true;
-  return true;
 }
 
 // 리뷰 저장
@@ -868,7 +873,8 @@ function saveData(){
     dayBlocks:JSON.stringify(dayBlocks),
     custNotes:JSON.stringify(custNotes),
     custPhotos:JSON.stringify(custPhotos),
-    ids:JSON.stringify({svcNextId,bkNextId,rvNextId})
+    ids:JSON.stringify({svcNextId,bkNextId,rvNextId}),
+    bookPw:BOOK_PW
   };
   // localStorage와 sessionStorage 모두 저장 (카카오 인앱브라우저 대응)
   ['localStorage','sessionStorage'].forEach(store=>{
@@ -897,6 +903,7 @@ function loadData(){
     const cp=getItem('sera_custPhotos');if(cp)custPhotos=JSON.parse(cp);
     const ids=getItem('sera_ids');if(ids){const p=JSON.parse(ids);svcNextId=p.svcNextId;bkNextId=p.bkNextId;rvNextId=p.rvNextId;}
     const hr=getItem('sera_hours');if(hr){const h=JSON.parse(hr);OPEN=h.open;CLOSE=h.close;}
+    const bp=getItem('sera_bookPw');if(bp)BOOK_PW=bp;
   }catch(e){}
 }
 
@@ -909,6 +916,12 @@ function goHome(){
   document.getElementById('v-home').classList.add('on');
 }
 async function goBook(){
+  // localStorage/sessionStorage 모두 확인하는 헬퍼
+  function getPw(){
+    try{const v=localStorage.getItem('sera_bookPw');if(v)return v;}catch(e){}
+    try{const v=sessionStorage.getItem('sera_bookPw');if(v)return v;}catch(e){}
+    return '';
+  }
   // Supabase 설정 로드가 안 끝났으면 최대 3초 대기
   if(!_settingsLoaded){
     for(let i=0;i<30;i++){
@@ -916,7 +929,11 @@ async function goBook(){
       if(_settingsLoaded) break;
     }
   }
-  const pw = BOOK_PW || localStorage.getItem('sera_bookPw')||'';
+  // 그래도 BOOK_PW가 비어있고 스토리지에도 없으면 한 번 더 시도
+  if(!BOOK_PW && !getPw()){
+    try { await loadSettingsFromSupa(); } catch(e){}
+  }
+  const pw = BOOK_PW || getPw();
   if(pw){
     const modal = document.getElementById('bookPwModal');
     modal.style.display='flex';
@@ -928,7 +945,12 @@ async function goBook(){
   enterBooking();
 }
 function checkBookPw(){
-  const pw = BOOK_PW || localStorage.getItem('sera_bookPw')||'';
+  function getPw(){
+    try{const v=localStorage.getItem('sera_bookPw');if(v)return v;}catch(e){}
+    try{const v=sessionStorage.getItem('sera_bookPw');if(v)return v;}catch(e){}
+    return '';
+  }
+  const pw = BOOK_PW || getPw();
   const input = document.getElementById('bookPwInput').value;
   if(input===pw){ enterBooking(); return; }
   const msg = document.getElementById('bookPwMsg');
