@@ -905,9 +905,11 @@ let reviews = [];
 let rvNextId = 1;
 
 // 고객 메모 & 사진
-let custNotes = {}; // phone -> string
-let custGroups = {}; // phone -> group string
-let custPhotos = {}; // phone -> [dataURL]
+let custNotes = {}; // custKey -> string
+let custGroups = {}; // custKey -> group string
+let custPhotos = {}; // custKey -> [dataURL]
+// 고객 고유키: 이름+전화번호 조합
+function custKey(name,phone){ return name+'||'+phone; }
 
 // 선택된 시술 IDs (multi-select)
 let selSvcIds = new Set();
@@ -1109,6 +1111,29 @@ function loadData(){
     const hr=localStorage.getItem('sera_hours');
     if(hr){const h=JSON.parse(hr);OPEN=h.open;CLOSE=h.close;}
   }catch(e){}
+  migrateCustKeys();
+}
+function migrateCustKeys(){
+  if(localStorage.getItem('sera_custKeyMigrated')) return;
+  const phoneToName={};
+  bookings.forEach(b=>{ if(b.phone && b.name && !phoneToName[b.phone]) phoneToName[b.phone]=b.name; });
+  function migrate(obj){
+    let changed=false;
+    Object.keys(obj).forEach(k=>{
+      if(k.includes('||')) return;
+      const name=phoneToName[k];
+      if(name){
+        const newK=custKey(name,k);
+        if(!obj[newK]) obj[newK]=obj[k];
+      }
+      delete obj[k];
+      changed=true;
+    });
+    return changed;
+  }
+  const c1=migrate(custNotes), c2=migrate(custPhotos), c3=migrate(custGroups);
+  if(c1||c2||c3) saveData();
+  localStorage.setItem('sera_custKeyMigrated','1');
 }
 async function saveBookPw(){
   const pw = document.getElementById('bookPwSetting').value.trim();
@@ -1723,13 +1748,19 @@ async function savePhoneEdit(id){
   const b = bookings.find(x=>x.id===id);
   if(!b) return;
   const oldPhone = b.phone;
-  b.phone = newPhone;
-  // 같은 고객의 다른 예약도 업데이트
-  bookings.forEach(bk=>{ if(bk.phone===oldPhone) bk.phone=newPhone; });
+  const cName = b.name;
+  const oldKey = custKey(cName, oldPhone);
+  const newKey = custKey(cName, newPhone);
+  // 같은 이름+번호 고객의 다른 예약도 업데이트
+  bookings.forEach(bk=>{ if(bk.name===cName && bk.phone===oldPhone) bk.phone=newPhone; });
+  // custNotes/Photos/Groups 키 마이그레이션
+  if(custNotes[oldKey]){ custNotes[newKey]=custNotes[oldKey]; delete custNotes[oldKey]; }
+  if(custPhotos[oldKey]){ custPhotos[newKey]=custPhotos[oldKey]; delete custPhotos[oldKey]; }
+  if(custGroups[oldKey]){ custGroups[newKey]=custGroups[oldKey]; delete custGroups[oldKey]; }
   saveData();
   // Supabase 업데이트
   try{
-    await fetch(SUPA_URL+'/rest/v1/bookings?phone=eq.'+encodeURIComponent(oldPhone),{
+    await fetch(SUPA_URL+'/rest/v1/bookings?name=eq.'+encodeURIComponent(cName)+'&phone=eq.'+encodeURIComponent(oldPhone),{
       method:'PATCH',
       headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
       body: JSON.stringify({phone: newPhone})
@@ -1917,21 +1948,23 @@ async function submitAdminBooking(){
 }
 
 // ── 고객 관리 ──
-async function deleteCustomer(phone, name, e){
+async function deleteCustomer(key, name, e){
   e.stopPropagation();
   if(!confirm(`${name} 고객의 모든 예약 데이터를 삭제할까요?\n(복구 불가)`)) return;
+  const [cName,cPhone] = key.split('||');
   // Supabase에서도 삭제
   try{
-    await fetch(SUPA_URL+'/rest/v1/bookings?phone=eq.'+encodeURIComponent(phone),{
+    await fetch(SUPA_URL+'/rest/v1/bookings?name=eq.'+encodeURIComponent(cName)+'&phone=eq.'+encodeURIComponent(cPhone),{
       method:'DELETE',
       headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
     });
   }catch(e){}
-  bookings = bookings.filter(b=>b.phone!==phone);
-  delete custNotes[phone];
-  delete custPhotos[phone];
+  bookings = bookings.filter(b=>custKey(b.name,b.phone)!==key);
+  delete custNotes[key];
+  delete custPhotos[key];
+  delete custGroups[key];
   saveData();
-  renderDash(); // 대시보드 카운트 즉시 반영
+  renderDash();
   renderCustomers(document.getElementById('custSearch').value);
 }
 
@@ -1972,10 +2005,10 @@ function setGroupFilter(g){
 function renderCustomers(filter=''){
   renderGroupTabs();
   const map={};
-  bookings.forEach(b=>{if(!map[b.phone])map[b.phone]={name:b.name,phone:b.phone,list:[]};map[b.phone].list.push(b);});
+  bookings.forEach(b=>{const k=custKey(b.name,b.phone);if(!map[k])map[k]={name:b.name,phone:b.phone,key:k,list:[]};map[k].list.push(b);});
   let custs = Object.values(map).filter(c=>!filter||(c.name.includes(filter)||c.phone.includes(filter)));
   if(activeGroupFilter!=='전체'){
-    custs = custs.filter(c=>(custGroups[c.phone]||'')===activeGroupFilter);
+    custs = custs.filter(c=>(custGroups[c.key]||'')===activeGroupFilter);
   }
   custs.sort((a,b)=>{
     const an=a.name,bn=b.name;
@@ -1988,15 +2021,15 @@ function renderCustomers(filter=''){
     const done=c.list.filter(b=>b.status==='done');
     const last=[...done].sort((a,z)=>z.date.localeCompare(a.date))[0];
     const revisit=last&&(TODAY-new Date(last.date+'T00:00:00'))/86400000>60;
-    const group=custGroups[c.phone]||'';
-    return `<div class="cust-card" onclick="openCustModal('${c.phone}')">
+    const group=custGroups[c.key]||'';
+    return `<div class="cust-card" onclick="openCustModal('${c.key.replace(/'/g,"\\'")}')">
       <div class="cust-av">${c.name[0]}</div>
       <div class="cust-info">
         <div class="cust-name">${c.name}${group?` <span style="font-size:.62rem;padding:1px 6px;border-radius:10px;background:var(--pk-light);color:var(--pk-dark)">${group}</span>`:''}</div>
         <div class="cust-meta">${c.phone} · ${done.length}회 방문${revisit?' · 🔔 재방문알림':''}</div>
       </div>
       ${done.length>=3?'<span class="sbadge sb-confirmed">VIP</span>':''}
-      <button onclick="deleteCustomer('${c.phone}','${c.name}',event)" style="margin-left:4px;padding:5px 10px;border:1.5px solid #DEC0C0;border-radius:6px;background:var(--red-bg);color:var(--red);font-size:.72rem;cursor:pointer;flex-shrink:0;font-family:'DM Sans','Noto Sans KR',sans-serif">삭제</button>
+      <button onclick="deleteCustomer('${c.key.replace(/'/g,"\\'")}','${c.name}',event)" style="margin-left:4px;padding:5px 10px;border:1.5px solid #DEC0C0;border-radius:6px;background:var(--red-bg);color:var(--red);font-size:.72rem;cursor:pointer;flex-shrink:0;font-family:'DM Sans','Noto Sans KR',sans-serif">삭제</button>
     </div>`;
   }).join('')||'<div class="empty-msg">고객이 없습니다</div>';
 }
@@ -2110,12 +2143,11 @@ function deleteGroupByIdx(idx){
   renderCustomers(document.getElementById('custSearch').value);
 }
 
-function setCustGroup(phone, group){
-  custGroups[phone] = group;
+function setCustGroup(key, group){
+  custGroups[key] = group;
   saveData();
-  // 모달 새로고침
   closeModal('custModal');
-  setTimeout(()=>{ openCustModal(phone); renderCustomers(document.getElementById('custSearch').value); }, 100);
+  setTimeout(()=>{ openCustModal(key); renderCustomers(document.getElementById('custSearch').value); }, 100);
 }
 
 // ── 미확인 예약 알림 배너 ──
@@ -2157,30 +2189,32 @@ function autoCompleteBookings(){
   });
   if(changed){ saveData(); renderDash(); }
 }
-function addPhoto(phone,input){
+function addPhoto(key,input){
   if(!input.files[0])return;
   const reader=new FileReader();
-  reader.onload=e=>{if(!custPhotos[phone])custPhotos[phone]=[];custPhotos[phone].push(e.target.result);saveData();renderPhotoGrid(phone);};
+  reader.onload=e=>{if(!custPhotos[key])custPhotos[key]=[];custPhotos[key].push(e.target.result);saveData();renderPhotoGrid(key);};
   reader.readAsDataURL(input.files[0]);input.value='';
 }
-function delPhoto(phone,idx){custPhotos[phone].splice(idx,1);saveData();renderPhotoGrid(phone);}
-function saveCustNote(phone){custNotes[phone]=document.getElementById('custNoteArea').value;saveData();alert('저장되었습니다!');}
+function delPhoto(key,idx){custPhotos[key].splice(idx,1);saveData();renderPhotoGrid(key);}
+function saveCustNote(key){custNotes[key]=document.getElementById('custNoteArea').value;saveData();alert('저장되었습니다!');}
 
-async function saveCustPhone(oldPhone){
+async function saveCustPhone(oldKey){
   const input = document.getElementById('custPhoneEdit');
   if(!input) return;
   const newPhone = input.value.trim();
+  const [cName, oldPhone] = oldKey.split('||');
   if(!newPhone){ alert('연락처를 입력해주세요.'); return; }
   if(newPhone===oldPhone){ alert('동일한 연락처예요.'); return; }
+  const newKey = custKey(cName, newPhone);
   // 로컬 데이터 업데이트
-  bookings.forEach(b=>{ if(b.phone===oldPhone) b.phone=newPhone; });
-  if(custNotes[oldPhone]){ custNotes[newPhone]=custNotes[oldPhone]; delete custNotes[oldPhone]; }
-  if(custPhotos[oldPhone]){ custPhotos[newPhone]=custPhotos[oldPhone]; delete custPhotos[oldPhone]; }
-  if(custGroups[oldPhone]){ custGroups[newPhone]=custGroups[oldPhone]; delete custGroups[oldPhone]; }
+  bookings.forEach(b=>{ if(b.name===cName && b.phone===oldPhone) b.phone=newPhone; });
+  if(custNotes[oldKey]){ custNotes[newKey]=custNotes[oldKey]; delete custNotes[oldKey]; }
+  if(custPhotos[oldKey]){ custPhotos[newKey]=custPhotos[oldKey]; delete custPhotos[oldKey]; }
+  if(custGroups[oldKey]){ custGroups[newKey]=custGroups[oldKey]; delete custGroups[oldKey]; }
   saveData();
   // Supabase 업데이트
   try{
-    await fetch(SUPA_URL+'/rest/v1/bookings?phone=eq.'+encodeURIComponent(oldPhone),{
+    await fetch(SUPA_URL+'/rest/v1/bookings?name=eq.'+encodeURIComponent(cName)+'&phone=eq.'+encodeURIComponent(oldPhone),{
       method:'PATCH',
       headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
       body: JSON.stringify({phone: newPhone})
@@ -2191,22 +2225,26 @@ async function saveCustPhone(oldPhone){
   renderCustomers(document.getElementById('custSearch').value);
 }
 
-function renderPhotoGrid(phone){
-  const photos=custPhotos[phone]||[];
-  const grid=document.getElementById('photoGrid-'+phone);
+function renderPhotoGrid(key){
+  const photos=custPhotos[key]||[];
+  const safeId=key.replace(/[^a-zA-Z0-9가-힣]/g,'_');
+  const ek=key.replace(/'/g,"\\'");
+  const grid=document.getElementById('photoGrid-'+safeId);
   if(!grid)return;
-  grid.innerHTML=photos.map((p,i)=>`<div class="photo-cell"><img src="${p}" onclick="openImgViewer('${p}')" style="cursor:zoom-in"><button class="ph-del" onclick="event.stopPropagation();delPhoto('${phone}',${i})">✕</button></div>`).join('')+
-    `<div class="photo-cell photo-add" onclick="document.getElementById('photoInput-${phone}').click()"><span class="ph-ico">+</span><span>사진 추가</span></div>`;
+  grid.innerHTML=photos.map((p,i)=>`<div class="photo-cell"><img src="${p}" onclick="openImgViewer('${p}')" style="cursor:zoom-in"><button class="ph-del" onclick="event.stopPropagation();delPhoto('${ek}',${i})">✕</button></div>`).join('')+
+    `<div class="photo-cell photo-add" onclick="document.getElementById('photoInput-${safeId}').click()"><span class="ph-ico">+</span><span>사진 추가</span></div>`;
 }
 
-function openCustModal(phone){
-  const map={};bookings.forEach(b=>{if(!map[b.phone])map[b.phone]={name:b.name,phone:b.phone,list:[]};map[b.phone].list.push(b);});
-  const c=map[phone];
+function openCustModal(key){
+  const map={};bookings.forEach(b=>{const k=custKey(b.name,b.phone);if(!map[k])map[k]={name:b.name,phone:b.phone,key:k,list:[]};map[k].list.push(b);});
+  const c=map[key];
   if(!c)return;
-  if(!custPhotos[phone])custPhotos[phone]=[];
+  if(!custPhotos[key])custPhotos[key]=[];
+  const safeId=key.replace(/[^a-zA-Z0-9가-힣]/g,'_');
+  const ek=key.replace(/'/g,"\\'");
   document.getElementById('custMTitle').textContent=c.name;
   const done=c.list.filter(b=>b.status==='done').sort((a,z)=>z.date.localeCompare(a.date));
-  const group=custGroups[phone]||'';
+  const group=custGroups[key]||'';
   document.getElementById('custMBody').innerHTML=`
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:13px">
       <div class="cust-av">${c.name[0]}</div>
@@ -2214,26 +2252,26 @@ function openCustModal(phone){
         <div style="font-weight:500;margin-bottom:5px">${c.name}</div>
         <div style="display:flex;align-items:center;gap:6px">
           <input id="custPhoneEdit" value="${c.phone}" type="tel" style="flex:1;padding:4px 8px;border:1.5px solid var(--ln);border-radius:6px;font-size:.78rem;font-family:'DM Sans','Noto Sans KR',sans-serif;min-width:0;color:var(--tx)">
-          <button onclick="saveCustPhone('${phone}')" style="padding:4px 10px;border:1.5px solid var(--pk-mid);border-radius:6px;background:var(--pk-light);color:var(--pk-dark);font-size:.72rem;cursor:pointer;white-space:nowrap;font-family:'DM Sans','Noto Sans KR',sans-serif">수정</button>
+          <button onclick="saveCustPhone('${ek}')" style="padding:4px 10px;border:1.5px solid var(--pk-mid);border-radius:6px;background:var(--pk-light);color:var(--pk-dark);font-size:.72rem;cursor:pointer;white-space:nowrap;font-family:'DM Sans','Noto Sans KR',sans-serif">수정</button>
         </div>
       </div>
     </div>
     <div class="msec">그룹 설정</div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
       ${['없음',...getAllGroups()].map(g=>`
-        <button onclick="setCustGroup('${phone}','${g==='없음'?'':g}')" style="padding:5px 12px;border-radius:20px;border:1.5px solid ${group===(g==='없음'?'':g)?'var(--pk)':'var(--ln)'};background:${group===(g==='없음'?'':g)?'var(--pk)':'var(--bg2)'};color:${group===(g==='없음'?'':g)?'var(--w)':'var(--sub)'};font-size:.74rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">${g}</button>
+        <button onclick="setCustGroup('${ek}','${g==='없음'?'':g}')" style="padding:5px 12px;border-radius:20px;border:1.5px solid ${group===(g==='없음'?'':g)?'var(--pk)':'var(--ln)'};background:${group===(g==='없음'?'':g)?'var(--pk)':'var(--bg2)'};color:${group===(g==='없음'?'':g)?'var(--w)':'var(--sub)'};font-size:.74rem;cursor:pointer;font-family:'DM Sans','Noto Sans KR',sans-serif">${g}</button>
       `).join('')}
     </div>
     <div style="display:flex;gap:6px;margin-bottom:12px">
       <input id="customGroupInput" placeholder="직접 입력 (예: 임산부)" style="flex:1;padding:6px 10px;border:1.5px solid var(--ln);border-radius:7px;font-size:.78rem;font-family:'DM Sans','Noto Sans KR',sans-serif" value="${group&&!getAllGroups().includes(group)?group:''}">
-      <button onclick="setCustGroup('${phone}',document.getElementById('customGroupInput').value.trim())" class="btn-outline" style="white-space:nowrap">적용</button>
+      <button onclick="setCustGroup('${ek}',document.getElementById('customGroupInput').value.trim())" class="btn-outline" style="white-space:nowrap">적용</button>
     </div>
     <div class="msec">메모</div>
-    <textarea id="custNoteArea" style="width:100%;padding:9px 11px;border:1.5px solid var(--ln);border-radius:7px;font-family:'DM Sans','Noto Sans KR',sans-serif;font-size:.8rem;min-height:64px;outline:none;resize:vertical" placeholder="모발 상태, 선호 스타일 등 메모...">${custNotes[phone]||''}</textarea>
-    <button class="btn-outline" style="margin-top:5px" onclick="saveCustNote('${phone}')">메모 저장</button>
+    <textarea id="custNoteArea" style="width:100%;padding:9px 11px;border:1.5px solid var(--ln);border-radius:7px;font-family:'DM Sans','Noto Sans KR',sans-serif;font-size:.8rem;min-height:64px;outline:none;resize:vertical" placeholder="모발 상태, 선호 스타일 등 메모...">${custNotes[key]||''}</textarea>
+    <button class="btn-outline" style="margin-top:5px" onclick="saveCustNote('${ek}')">메모 저장</button>
     <div class="msec">시술 사진</div>
-    <div class="photo-grid" id="photoGrid-${phone}"></div>
-    <input type="file" accept="image/*" id="photoInput-${phone}" style="display:none" onchange="addPhoto('${phone}',this)">
+    <div class="photo-grid" id="photoGrid-${safeId}"></div>
+    <input type="file" accept="image/*" id="photoInput-${safeId}" style="display:none" onchange="addPhoto('${ek}',this)">
     <div class="msec">시술 히스토리</div>
     <div class="tl">${done.map(b=>{
       const svcNames=b.services.map(s=>s.name).join(', ');
@@ -2242,7 +2280,7 @@ function openCustModal(phone){
         <div class="tl-svc">${svcNames}</div>
         <div class="tl-price">${fmtMoney(b.totalPrice)} · <span class="sbadge ${sBadge(b.status)}">${sLabel(b.status)}</span></div>
         ${b.note?`<div class="tl-note">💬 ${b.note}</div>`:''}</div>`;}).join('')}</div>`;
-  renderPhotoGrid(phone);
+  renderPhotoGrid(key);
   document.getElementById('custModal').classList.add('on');
 }
 
@@ -2847,12 +2885,12 @@ async function backupAll(){
     const entries = Object.entries(custPhotos);
     if(!entries.length){ resolve(); return; }
     let done = 0;
-    entries.forEach(([phone, photos])=>{
+    entries.forEach(([key, photos])=>{
       if(!photos||!photos.length){ done++; if(done===entries.length) resolve(); return; }
+      const [cName, cPhone] = key.split('||');
       // 해당 고객 예약에서 가장 최근 시술명 찾기
-      const cBks = bkData.filter(b=>(b.phone===phone||b.phone===phone)&&b.status==='done');
-      const custName = custNotes[phone]?.name || (cBks[0]?.name) ||
-        bookings.find(b=>b.phone===phone)?.name || phone;
+      const cBks = bkData.filter(b=>b.name===cName&&b.phone===cPhone&&b.status==='done');
+      const custName = cName || cPhone || 'unknown';
       const svcName = cBks[0]?.services?.[0]?.name || '시술';
       photos.forEach((dataUrl, idx)=>{
         try{
@@ -2947,10 +2985,11 @@ async function backupSelected(){
   // 고객 사진
   if(optPhotos){
     let photoCount=0;
-    Object.entries(custPhotos).forEach(([phone,photos])=>{
+    Object.entries(custPhotos).forEach(([key,photos])=>{
       if(!photos||!photos.length) return;
-      const cBk=bkData.find(b=>(b.phone===phone||b.phone===phone)&&(b.status==='done'||b.status==='confirmed'))||bkData.find(b=>b.phone===phone);
-      const custName=cBk?.name||bookings.find(b=>b.phone===phone)?.name||phone;
+      const [cName,cPhone]=key.split('||');
+      const cBk=bkData.find(b=>b.name===cName&&b.phone===cPhone&&(b.status==='done'||b.status==='confirmed'))||bkData.find(b=>b.name===cName&&b.phone===cPhone);
+      const custName=cName||cPhone||'unknown';
       const svcName=cBk?.services?.[0]?.name||'시술';
       photos.forEach((dataUrl,idx)=>{
         try{
