@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sera 일정">
+<meta name="theme-color" content="#2A1F1F">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>오늘의 일정 — Designer Sera</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --w:#FFFFFF;--bg:#FAF7F7;--bg2:#F5F0F0;
+  --ln:#F0E4E4;--ln2:#DBBFBF;
+  --tx:#2A1F1F;--sub:#A08888;--sub2:#CDB8B8;
+  --grn:#2B6644;--grn-bg:#EBF4EF;--grn-bd:#AACFBA;
+  --red:#AD3535;--red-bg:#FAEAEA;
+  --pk:#C4738A;--pk-light:#F9EEF1;--pk-mid:#EDD0D8;--pk-dark:#9E4D65;
+  --done:#B8C9BD;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  font-family:'DM Sans','Noto Sans KR',sans-serif;
+  background:var(--bg);color:var(--tx);
+  min-height:100vh;min-height:100dvh;
+  font-size:14px;-webkit-font-smoothing:antialiased;
+  padding-bottom:env(safe-area-inset-bottom, 20px);
+}
+
+.header{
+  position:sticky;top:0;z-index:10;
+  background:var(--tx);color:var(--w);
+  padding:max(env(safe-area-inset-top, 12px), 12px) 18px 14px;
+}
+.header-top{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:6px;}
+.header-date{font-family:'DM Serif Display',serif;font-size:1.6rem;letter-spacing:1px;line-height:1.1;}
+.header-day{font-size:.72rem;color:var(--sub2);letter-spacing:2px;text-transform:uppercase;}
+.header-sub{font-size:.72rem;color:var(--sub2);letter-spacing:.5px;margin-top:2px;}
+
+.kpi-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:14px 16px 6px;}
+.kpi{background:var(--w);border-radius:12px;padding:12px 10px;text-align:center;border:1.5px solid var(--ln);transition:transform .15s;}
+.kpi:active{transform:scale(.97);}
+.kpi-num{font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--tx);line-height:1;}
+.kpi-label{font-size:.62rem;color:var(--sub);margin-top:4px;letter-spacing:.5px;}
+.kpi.highlight{border-color:var(--pk-mid);background:var(--pk-light);}
+.kpi.highlight .kpi-num{color:var(--pk-dark);}
+.kpi.warn{border-color:#EDD0A0;background:#FFF8EE;}
+.kpi.warn .kpi-num{color:#A07020;}
+
+.section{padding:10px 16px 4px;}
+.section-title{font-size:.7rem;color:var(--sub);letter-spacing:2px;text-transform:uppercase;font-weight:500;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.section-title::after{content:'';flex:1;height:1px;background:var(--ln);}
+
+.timeline{padding:0 16px 16px;display:flex;flex-direction:column;gap:8px;}
+.tcard{
+  background:var(--w);border-radius:12px;padding:13px 14px;
+  border:1.5px solid var(--ln);display:flex;gap:12px;align-items:flex-start;
+  position:relative;overflow:hidden;transition:transform .12s;
+}
+.tcard:active{transform:scale(.985);}
+.tcard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--pk);border-radius:4px 0 0 4px;}
+.tcard.done::before{background:var(--done);}
+.tcard.pending::before{background:#E8C060;}
+.tcard.cancelled::before{background:var(--red);opacity:.4;}
+.tcard.now{border-color:var(--pk-mid);box-shadow:0 2px 12px rgba(196,115,138,.12);}
+.tcard-time{flex-shrink:0;width:52px;text-align:center;padding-top:2px;}
+.tcard-h{font-family:'DM Serif Display',serif;font-size:1rem;line-height:1;}
+.tcard-ampm{font-size:.55rem;color:var(--sub);letter-spacing:1px;margin-top:1px;}
+.tcard-body{flex:1;min-width:0;}
+.tcard-name{font-weight:500;font-size:.88rem;margin-bottom:2px;}
+.tcard-svc{font-size:.72rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tcard-meta{display:flex;gap:8px;margin-top:5px;flex-wrap:wrap;}
+.tcard-tag{font-size:.6rem;padding:2px 7px;border-radius:12px;background:var(--bg2);color:var(--sub);letter-spacing:.3px;}
+.tcard-tag.price{background:var(--pk-light);color:var(--pk-dark);}
+.tcard-tag.status-done{background:var(--grn-bg);color:var(--grn);}
+.tcard-tag.status-pending{background:#FFF8EE;color:#A07020;}
+.tcard-tag.status-cancel{background:var(--red-bg);color:var(--red);}
+.tcard-tag.now-tag{background:var(--pk);color:var(--w);font-weight:500;}
+
+.tomorrow{padding:0 16px 20px;}
+.tmr-card{background:var(--bg2);border-radius:12px;padding:12px 14px;border:1px solid var(--ln);}
+.tmr-title{font-size:.72rem;font-weight:500;margin-bottom:6px;color:var(--sub);}
+.tmr-item{font-size:.78rem;color:var(--tx);padding:3px 0;}
+
+.empty{text-align:center;padding:40px 20px;color:var(--sub);}
+.empty-ico{font-size:2.4rem;margin-bottom:8px;opacity:.5;}
+.empty-txt{font-size:.84rem;}
+.empty-sub{font-size:.7rem;color:var(--sub2);margin-top:4px;}
+
+.bottom-bar{
+  position:fixed;bottom:0;left:0;right:0;background:var(--w);border-top:1.5px solid var(--ln);
+  display:flex;justify-content:center;gap:12px;
+  padding:10px 16px max(env(safe-area-inset-bottom, 8px), 8px);z-index:10;
+}
+.bottom-btn{
+  padding:8px 20px;border-radius:8px;border:1.5px solid var(--ln);background:var(--w);
+  font-family:'DM Sans','Noto Sans KR',sans-serif;font-size:.76rem;color:var(--tx);cursor:pointer;transition:all .12s;
+}
+.bottom-btn:active{background:var(--bg2);}
+.bottom-btn.primary{background:var(--pk);color:var(--w);border-color:var(--pk);}
+
+.loading{display:flex;align-items:center;justify-content:center;min-height:60vh;}
+.spinner{width:28px;height:28px;border:3px solid var(--ln);border-top-color:var(--pk);border-radius:50%;animation:spin .6s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.date-nav{display:flex;align-items:center;gap:10px;margin-top:6px;}
+.date-nav-btn{background:none;border:none;color:var(--sub2);font-size:1rem;cursor:pointer;padding:4px 8px;border-radius:6px;transition:background .12s;}
+.date-nav-btn:active{background:rgba(255,255,255,.1);}
+.date-nav-label{font-size:.72rem;color:var(--sub2);letter-spacing:.5px;flex:1;text-align:center;cursor:pointer;}
+
+/* 미니 달력 */
+.cal-wrap{padding:0 16px 8px;}
+.cal-box{background:var(--w);border-radius:12px;border:1.5px solid var(--ln);overflow:hidden;}
+.cal-header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px 6px;}
+.cal-title{font-size:.82rem;font-weight:500;letter-spacing:.5px;}
+.cal-nav{background:none;border:none;color:var(--sub);font-size:.9rem;cursor:pointer;padding:4px 10px;border-radius:6px;}
+.cal-nav:active{background:var(--bg2);}
+.cal-dow{display:grid;grid-template-columns:repeat(7,1fr);padding:0 6px;}
+.cal-dow span{text-align:center;font-size:.58rem;color:var(--sub2);padding:4px 0;letter-spacing:.5px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);padding:0 6px 8px;gap:2px;}
+.cal-cell{
+  text-align:center;padding:6px 0;font-size:.74rem;border-radius:8px;
+  cursor:pointer;position:relative;transition:all .12s;color:var(--tx);
+}
+.cal-cell:active{transform:scale(.9);}
+.cal-cell.other{color:var(--sub2);opacity:.4;}
+.cal-cell.today{font-weight:600;color:var(--pk-dark);}
+.cal-cell.today::after{content:'';position:absolute;bottom:1px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--pk);}
+.cal-cell.sel{background:var(--pk);color:var(--w);font-weight:600;}
+.cal-cell.sel::after{background:var(--w)!important;}
+.cal-cell.has-bk::before{content:'';position:absolute;top:2px;right:calc(50% - 8px);width:4px;height:4px;border-radius:50%;background:var(--pk-mid);}
+.cal-cell.sel.has-bk::before{background:rgba(255,255,255,.5);}
+.cal-cell.sun{color:var(--red);}
+.cal-cell.sun.other{color:var(--red);opacity:.3;}
+.cal-cell.sun.sel{color:var(--w);}
+</style>
+</head>
+<body>
+<div id="app"><div class="loading"><div class="spinner"></div></div></div>
+<script>
+const SUPA_URL='https://oyooygykehhxfoffixej.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95b295Z3lrZWhoeGZvZmZpeGVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NzE2OTMsImV4cCI6MjA5MDA0NzY5M30.gQLYJAiwbLAIZfbdEGsIc22y1b3DOHim1xzMr_urmVw';
+const DOW_KO=['일요일','월요일','화요일','수요일','목요일','금요일','토요일'];
+const DOW_SHORT=['일','월','화','수','목','금','토'];
+let viewDate=new Date(), bookings=[];
+let calOpen=false;
+let calYear, calMonth;
+function initCalMonth(){ calYear=viewDate.getFullYear(); calMonth=viewDate.getMonth(); }
+
+function todayStr(){return fmt(new Date());}
+function fmt(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function pad(n){return n<10?'0'+n:''+n;}
+function fmtMoney(n){return n>=10000?(n/10000).toFixed(n%10000?1:0)+'만원':n.toLocaleString()+'원';}
+function timeToMin(t){const[h,m]=t.split(':').map(Number);return h*60+m;}
+function fmtTime12(t){const[h,m]=t.split(':').map(Number);return{h:(h===0?12:h>12?h-12:h)+':'+pad(m),ampm:h<12?'AM':'PM'};}
+
+async function sbFetch(path){
+  try{
+    const res=await fetch(SUPA_URL+'/rest/v1/'+path,{headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}});
+    if(!res.ok)return null;
+    const text=await res.text();
+    return text?JSON.parse(text):[];
+  }catch(e){return null;}
+}
+
+async function loadBookings(){
+  const res=await sbFetch('bookings?select=*&order=date.asc,start_time.asc');
+  if(res) bookings=res.map(b=>({
+    id:b.id,name:b.name,phone:b.phone,services:b.services||[],date:b.date,
+    startTime:b.start_time,endTime:b.end_time,totalPrice:b.total_price,
+    status:b.status,note:b.note||''
+  }));
+}
+
+function getDateBookings(ds){return bookings.filter(b=>b.date===ds&&b.status!=='cancelled').sort((a,b)=>a.startTime.localeCompare(b.startTime));}
+
+function svcName(s){return typeof s.name==='object'?(s.name.ko||s.name.en||''):s.name;}
+
+function render(){
+  const ds=fmt(viewDate), today=todayStr(), isT=ds===today;
+  const dayBks=getDateBookings(ds);
+  const nowMin=new Date().getHours()*60+new Date().getMinutes();
+
+  const todayBks=getDateBookings(today);
+  const remaining=todayBks.filter(b=>timeToMin(b.startTime)>nowMin&&b.status!=='done').length;
+  const pending=bookings.filter(b=>b.status==='pending').length;
+  const todayRev=todayBks.filter(b=>b.status==='done'||b.status==='confirmed').reduce((a,b)=>a+b.totalPrice,0);
+
+  const tmr=new Date(viewDate);tmr.setDate(tmr.getDate()+1);
+  const tmrBks=getDateBookings(fmt(tmr));
+
+  let html=`
+    <div class="header">
+      <div class="header-top">
+        <div>
+          <div class="header-date">${viewDate.getMonth()+1}.${viewDate.getDate()}</div>
+          <div class="header-day">${DOW_KO[viewDate.getDay()]}</div>
+        </div>
+        <div class="header-sub">${isT?`남은 예약 ${remaining}건`:`예약 ${dayBks.length}건`}</div>
+      </div>
+      <div class="date-nav">
+        <button class="date-nav-btn" onclick="moveDate(-1)">◂</button>
+        <div class="date-nav-label" onclick="toggleCal()">${isT?'오늘':fmt(viewDate)} ${calOpen?'▴':'▾'}</div>
+        <button class="date-nav-btn" onclick="moveDate(1)">▸</button>
+        ${!isT?`<button class="date-nav-btn" onclick="goToday()" style="font-size:.68rem;letter-spacing:.5px">오늘</button>`:''}
+      </div>
+    </div>
+    ${calOpen?renderCal():''}
+    <div class="kpi-row">
+      <div class="kpi${remaining>0?' highlight':''}"><div class="kpi-num">${remaining}</div><div class="kpi-label">오늘 남은</div></div>
+      <div class="kpi${pending>0?' warn':''}"><div class="kpi-num">${pending}</div><div class="kpi-label">미확인</div></div>
+      <div class="kpi"><div class="kpi-num">${todayRev?fmtMoney(todayRev).replace('원',''):'0'}</div><div class="kpi-label">오늘 매출</div></div>
+    </div>`;
+
+  if(!dayBks.length){
+    html+=`<div class="empty"><div class="empty-ico">☕</div><div class="empty-txt">${isT?'오늘은 예약이 없어요':'이 날은 예약이 없어요'}</div><div class="empty-sub">여유로운 하루 보내세요 :)</div></div>`;
+  } else {
+    const dateLabel=isT?'오늘':`${viewDate.getMonth()+1}/${viewDate.getDate()}`;
+    html+=`<div class="section"><div class="section-title">${dateLabel} 일정 · ${dayBks.length}건</div></div><div class="timeline">`;
+    dayBks.forEach(b=>{
+      const t=fmtTime12(b.startTime);
+      const svcs=b.services.map(s=>svcName(s)).join(', ');
+      const isNow=isT&&nowMin>=timeToMin(b.startTime)&&nowMin<timeToMin(b.endTime)&&b.status!=='done';
+      const isDone=b.status==='done', isPending=b.status==='pending';
+      let cls='tcard';
+      if(isDone)cls+=' done';else if(isPending)cls+=' pending';
+      if(isNow)cls+=' now';
+      let stag='';
+      if(isNow)stag='<span class="tcard-tag now-tag">진행중</span>';
+      else if(isDone)stag='<span class="tcard-tag status-done">완료</span>';
+      else if(isPending)stag='<span class="tcard-tag status-pending">미확인</span>';
+      else if(b.status==='cancel_req')stag='<span class="tcard-tag status-cancel">취소요청</span>';
+      html+=`<div class="${cls}">
+        <div class="tcard-time"><div class="tcard-h">${t.h}</div><div class="tcard-ampm">${t.ampm}</div></div>
+        <div class="tcard-body">
+          <div class="tcard-name">${b.name}</div>
+          <div class="tcard-svc">${svcs} · ${b.startTime}~${b.endTime}</div>
+          <div class="tcard-meta">
+            <span class="tcard-tag price">${fmtMoney(b.totalPrice)}</span>${stag}${b.note?'<span class="tcard-tag">💬 메모</span>':''}
+          </div>
+        </div>
+      </div>`;
+    });
+    html+=`</div>`;
+  }
+
+  if(isT&&tmrBks.length){
+    html+=`<div class="section"><div class="section-title">내일 미리보기</div></div>
+      <div class="tomorrow"><div class="tmr-card">
+        <div class="tmr-title">${tmr.getMonth()+1}/${tmr.getDate()} ${DOW_SHORT[tmr.getDay()]}요일 · ${tmrBks.length}건</div>
+        ${tmrBks.map(b=>`<div class="tmr-item">${b.startTime} ${b.name} — ${b.services.map(s=>svcName(s)).join(', ')}</div>`).join('')}
+      </div></div>`;
+  }
+
+  html+=`<div style="height:70px"></div>
+    <div class="bottom-bar">
+      <button class="bottom-btn" onclick="location.href='admin.html'">관리자 페이지</button>
+      <button class="bottom-btn primary" onclick="refresh()">↻ 새로고침</button>
+    </div>`;
+
+  document.getElementById('app').innerHTML=html;
+}
+
+function moveDate(d){viewDate.setDate(viewDate.getDate()+d);initCalMonth();render();}
+function goToday(){viewDate=new Date();initCalMonth();render();}
+function toggleCal(){calOpen=!calOpen;if(calOpen)initCalMonth();render();}
+function moveCal(d){calMonth+=d;if(calMonth<0){calYear--;calMonth=11;}if(calMonth>11){calYear++;calMonth=0;}render();}
+function pickDate(ds){viewDate=new Date(ds+'T00:00:00');initCalMonth();render();}
+
+function renderCal(){
+  const MO=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  const today=todayStr(), sel=fmt(viewDate);
+  const first=new Date(calYear,calMonth,1).getDay();
+  const days=new Date(calYear,calMonth+1,0).getDate();
+  const prevDays=new Date(calYear,calMonth,0).getDate();
+  // 예약 있는 날짜 Set
+  const bkDates=new Set(bookings.filter(b=>b.status!=='cancelled').map(b=>b.date));
+
+  let cells='';
+  // 이전 달
+  for(let i=first-1;i>=0;i--){
+    const d=prevDays-i;
+    const m=calMonth===0?12:calMonth;
+    const y=calMonth===0?calYear-1:calYear;
+    const ds=`${y}-${pad(m)}-${pad(d)}`;
+    const sun=(first-1-i)%7===0;
+    cells+=`<div class="cal-cell other${sun?' sun':''}" onclick="pickDate('${ds}')">${d}</div>`;
+  }
+  // 이번 달
+  for(let d=1;d<=days;d++){
+    const ds=`${calYear}-${pad(calMonth+1)}-${pad(d)}`;
+    const dow=(first+d-1)%7;
+    let cls='cal-cell';
+    if(ds===today) cls+=' today';
+    if(ds===sel) cls+=' sel';
+    if(bkDates.has(ds)) cls+=' has-bk';
+    if(dow===0) cls+=' sun';
+    cells+=`<div class="${cls}" onclick="pickDate('${ds}')">${d}</div>`;
+  }
+  // 다음 달
+  const totalCells=first+days;
+  const remain=totalCells%7===0?0:7-totalCells%7;
+  for(let d=1;d<=remain;d++){
+    const m=calMonth===11?1:calMonth+2;
+    const y=calMonth===11?calYear+1:calYear;
+    const ds=`${y}-${pad(m)}-${pad(d)}`;
+    const dow=(totalCells+d-1)%7;
+    cells+=`<div class="cal-cell other${dow===0?' sun':''}" onclick="pickDate('${ds}')">${d}</div>`;
+  }
+
+  return `<div class="cal-wrap"><div class="cal-box">
+    <div class="cal-header">
+      <button class="cal-nav" onclick="moveCal(-1)">◂</button>
+      <div class="cal-title">${calYear}년 ${MO[calMonth]}</div>
+      <button class="cal-nav" onclick="moveCal(1)">▸</button>
+    </div>
+    <div class="cal-dow"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+    <div class="cal-grid">${cells}</div>
+  </div></div>`;
+}
+async function refresh(){
+  document.getElementById('app').innerHTML='<div class="loading"><div class="spinner"></div></div>';
+  await loadBookings();render();
+}
+
+(async()=>{
+  initCalMonth();
+  await loadBookings();render();
+  setInterval(async()=>{await loadBookings();render();},60000);
+})();
+</script>
+</body>
+</html>
