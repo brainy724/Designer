@@ -431,7 +431,6 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
         <button class="asbtn" onclick="showPanel('menumanage',this)"><span class="ico">✦</span>시술·영업시간</button>
         <button class="asbtn" onclick="showPanel('reviews',this)"><span class="ico">★</span>리뷰 관리</button>
         <div class="aside-sec">스케줄</div>
-        <button class="asbtn" onclick="showPanel('offdays',this)"><span class="ico">○</span>휴무·차단</button>
         <button class="asbtn" onclick="showPanel('settings',this)"><span class="ico">⊙</span>설정</button>
         <button class="asbtn" onclick="showPanel('revenue',this)"><span class="ico">₩</span>매출·비용</button>
         <div style="flex:1"></div>
@@ -512,20 +511,6 @@ body{font-family:'DM Sans','Noto Sans KR',sans-serif;background:var(--bg);color:
         </div>
 
         <!-- 시술 관리 -->
-        <!-- 기존 services/offdays 패널 유지 (숨김) -->
-        <div class="apanel" id="panel-services" style="display:none"></div>
-        <div class="apanel" id="panel-offdays" style="display:none">
-          <div class="cal-grid" id="offCalGrid" style="display:none"></div>
-          <span id="offCalTitle" style="display:none"></span>
-          <div id="offCalPrev" style="display:none"></div>
-          <div id="offCalNext" style="display:none"></div>
-          <div id="offList" style="display:none"></div>
-          <div id="blockList" style="display:none"></div>
-          <input id="blkDate" style="display:none">
-          <select id="blkStart" style="display:none"></select>
-          <select id="blkEnd" style="display:none"></select>
-          <input id="blkReason" style="display:none">
-        </div>
 
         <!-- ✦ 시술·영업시간·휴무 통합 패널 -->
         <div class="apanel" id="panel-menumanage">
