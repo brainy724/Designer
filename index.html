@@ -1662,7 +1662,7 @@ function renderCal(gridId,titleId,year,month,selDate,clickFn,adminMode=false,sho
   for(let i=0;i<first;i++)html+=`<div class="cal-d emp"></div>`;
   for(let d=1;d<=days;d++){
     const ds=`${year}-${pad(month+1)}-${pad(d)}`;
-    const past=ds<todayStr,isTd=ds===todayStr,isSel=ds===selDate;
+    const past=ds<=todayStr,isTd=ds===todayStr,isSel=ds===selDate;
     const isOff=showOff&&(offDays.has(ds)||recurringDows.has(new Date(ds+'T00:00:00').getDay()));
     const isSun=new Date(ds+'T00:00:00').getDay()===0;
     const hasBk=adminMode&&bookedDates.has(ds);
